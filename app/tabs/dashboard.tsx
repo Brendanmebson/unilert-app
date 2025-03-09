@@ -1,7 +1,18 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Image, Dimensions, Alert } from "react-native";
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView, 
+  SafeAreaView, 
+  Image, 
+  Dimensions, 
+  Alert 
+} from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
 
 // Get screen dimensions for responsive design
 const { width } = Dimensions.get("window");
@@ -9,6 +20,8 @@ const { width } = Dimensions.get("window");
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
+  const { theme } = useTheme();
+  
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const userName = "Emmanuel";
@@ -69,18 +82,18 @@ export default function Dashboard() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.greeting}>{greeting}</Text>
+      <View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.borderColor }]}>
+        <Text style={[styles.greeting, { color: theme.textColor }]}>{greeting}</Text>
         <TouchableOpacity onPress={() => setShowDropdown(!showDropdown)}>
-          <Ionicons name="person-circle-outline" size={34} color="#333" />
+          <Ionicons name="person-circle-outline" size={34} color={theme.textColor} />
         </TouchableOpacity>
       </View>
 
       {/* Dropdown Menu */}
       {showDropdown && (
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { backgroundColor: theme.cardBackground, shadowColor: theme.textColor }]}>
           <TouchableOpacity 
             style={styles.dropdownItem} 
             onPress={() => {
@@ -88,8 +101,8 @@ export default function Dashboard() {
               setShowDropdown(false);
             }}
           > 
-            <Ionicons name="person-outline" size={20} color="#333" style={styles.dropdownIcon} />
-            <Text style={styles.dropdownText}>Profile</Text>
+            <Ionicons name="person-outline" size={20} color={theme.textColor} style={styles.dropdownIcon} />
+            <Text style={[styles.dropdownText, { color: theme.textColor }]}>Profile</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.dropdownItem} 
@@ -98,8 +111,8 @@ export default function Dashboard() {
               setShowDropdown(false);
             }}
           > 
-            <Ionicons name="settings-outline" size={20} color="#333" style={styles.dropdownIcon} />
-            <Text style={styles.dropdownText}>Settings</Text>
+            <Ionicons name="settings-outline" size={20} color={theme.textColor} style={styles.dropdownIcon} />
+            <Text style={[styles.dropdownText, { color: theme.textColor }]}>Settings</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.dropdownItem, styles.logoutItem]} 
@@ -108,47 +121,47 @@ export default function Dashboard() {
               setShowDropdown(false);
             }}
           >
-            <Ionicons name="log-out-outline" size={20} color="#FF3B30" style={styles.dropdownIcon} />
-            <Text style={styles.logoutText}>Logout</Text>
+            <Ionicons name="log-out-outline" size={20} color={theme.dangerColor} style={styles.dropdownIcon} />
+            <Text style={[styles.logoutText, { color: theme.dangerColor }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       )}
 
       <ScrollView style={styles.content} onScrollBeginDrag={handlePressOutside}>
         {/* Weather Widget */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
           <View style={styles.weatherWidget}>
             <Ionicons name="partly-sunny" size={42} color="#FFD700" />
             <View style={styles.weatherInfo}>
-              <Text style={styles.weatherText}>28°C, Sunny</Text>
-              <Text style={styles.weatherSubText}>Babcock University</Text>
+              <Text style={[styles.weatherText, { color: theme.textColor }]}>28°C, Sunny</Text>
+              <Text style={[styles.weatherSubText, { color: theme.secondaryTextColor }]}>Babcock University</Text>
             </View>
           </View>
         </View>
 
         {/* Daily Safety Tip */}
-        <View style={styles.safetyTip}>
+        <View style={[styles.safetyTip, { backgroundColor: theme.isDarkMode ? "#1A3A5A" : "#E3F2FD" }]}>
           <View style={styles.safetyHeaderRow}>
-            <Text style={styles.safetyTitle}>Daily Safety Tip</Text>
-            <Ionicons name="shield-checkmark" size={24} color="#1E90FF" />
+            <Text style={[styles.safetyTitle, { color: theme.accentColor }]}>Daily Safety Tip</Text>
+            <Ionicons name="shield-checkmark" size={24} color={theme.accentColor} />
           </View>
-          <Text style={styles.safetyText}>{safetyTips[currentTipIndex]}</Text>
+          <Text style={[styles.safetyText, { color: theme.textColor }]}>{safetyTips[currentTipIndex]}</Text>
         </View>
 
         {/* Safety Tools */}
-        <Text style={styles.sectionTitle}>Safety Tools</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Safety Tools</Text>
         <View style={styles.toolsContainer}>
           <TouchableOpacity style={styles.toolButton} onPress={() => router.push("/tabs/helplines")}> 
             <View style={styles.toolIconContainer}>
               <Ionicons name="call" size={24} color="white" />
             </View>
-            <Text style={styles.toolText}>Safety Helplines</Text>
+            <Text style={[styles.toolText, { color: theme.textColor }]}>Safety Helplines</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.toolButton} onPress={() => router.push("/tabs/report")}> 
             <View style={[styles.toolIconContainer, { backgroundColor: "#4CAF50" }]}>
               <Ionicons name="document-text-outline" size={24} color="white" />
             </View>
-            <Text style={styles.toolText}>Report Incident</Text>
+            <Text style={[styles.toolText, { color: theme.textColor }]}>Report Incident</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.toolButton} 
@@ -157,23 +170,29 @@ export default function Dashboard() {
             <View style={[styles.toolIconContainer, { backgroundColor: "#9C27B0" }]}>
               <Ionicons name="map" size={24} color="white" />
             </View>
-            <Text style={styles.toolText}>Safety Map</Text>
+            <Text style={[styles.toolText, { color: theme.textColor }]}>Safety Map</Text>
           </TouchableOpacity>
         </View>
 
         {/* Recent Alerts */}
         <View style={styles.alertsHeader}>
-          <Text style={styles.sectionTitle}>Recent Alerts</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Recent Alerts</Text>
           <TouchableOpacity onPress={() => router.push("/tabs/alerts")}>
-            <Text style={styles.viewAllText}>View All</Text>
+            <Text style={[styles.viewAllText, { color: theme.accentColor }]}>View All</Text>
           </TouchableOpacity>
         </View>
         
         {alerts.map((alert) => (
-          <View key={alert.id} style={[styles.alertContainer, alert.urgent && styles.urgentAlert]}>
-            <Text style={styles.alertText}>{alert.message}</Text>
+          <View 
+            key={alert.id} 
+            style={[
+              styles.alertContainer, 
+              alert.urgent ? [styles.urgentAlert, { backgroundColor: theme.isDarkMode ? "#3A1A1A" : "#FFF5F5" }] : { backgroundColor: theme.cardBackground }
+            ]}
+          >
+            <Text style={[styles.alertText, { color: theme.textColor }]}>{alert.message}</Text>
             <View style={styles.alertFooter}>
-              <Text style={styles.alertTime}>{alert.time}</Text>
+              <Text style={[styles.alertTime, { color: theme.secondaryTextColor }]}>{alert.time}</Text>
               {alert.urgent && (
                 <View style={styles.urgentBadge}>
                   <Text style={styles.urgentText}>URGENT</Text>
@@ -184,21 +203,21 @@ export default function Dashboard() {
         ))}
         
         {/* Quick Access */}
-        <Text style={styles.sectionTitle}>Quick Access</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Quick Access</Text>
         <View style={styles.quickAccessContainer}>
           <TouchableOpacity 
-            style={styles.quickAccessButton} 
+            style={[styles.quickAccessButton, { backgroundColor: theme.cardBackground }]} 
             onPress={() => showComingSoonAlert("Safety Resources")}
           >
-            <Ionicons name="book-outline" size={24} color="#1E90FF" />
-            <Text style={styles.quickAccessText}>Safety Resources</Text>
+            <Ionicons name="book-outline" size={24} color={theme.accentColor} />
+            <Text style={[styles.quickAccessText, { color: theme.textColor }]}>Safety Resources</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.quickAccessButton} 
+            style={[styles.quickAccessButton, { backgroundColor: theme.cardBackground }]} 
             onPress={() => showComingSoonAlert("Safety Training")}
           >
-            <Ionicons name="school-outline" size={24} color="#1E90FF" />
-            <Text style={styles.quickAccessText}>Safety Training</Text>
+            <Ionicons name="school-outline" size={24} color={theme.accentColor} />
+            <Text style={[styles.quickAccessText, { color: theme.textColor }]}>Safety Training</Text>
           </TouchableOpacity>
         </View>
         
@@ -207,22 +226,32 @@ export default function Dashboard() {
       </ScrollView>
 
       {/* Navigation Bar */}
-      <View style={styles.navbar}>
+      <View style={[styles.navbar, { backgroundColor: theme.cardBackground, borderTopColor: theme.borderColor }]}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/dashboard")}> 
           <Ionicons 
             name={pathname === "/tabs/dashboard" ? "home" : "home-outline"} 
             size={28} 
-            color={pathname === "/tabs/dashboard" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/dashboard" ? theme.accentColor : theme.secondaryTextColor} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/dashboard" && styles.activeNavText]}>Home</Text>
+          <Text style={[
+            styles.navText, 
+            pathname === "/tabs/dashboard" ? 
+              [styles.activeNavText, { color: theme.accentColor }] : 
+              { color: theme.secondaryTextColor }
+          ]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/emergency-contacts")}> 
           <Ionicons 
             name={pathname === "/tabs/emergency-contacts" ? "people" : "people-outline"} 
             size={28} 
-            color={pathname === "/tabs/emergency-contacts" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/emergency-contacts" ? theme.accentColor : theme.secondaryTextColor} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/emergency-contacts" && styles.activeNavText]}>Contacts</Text>
+          <Text style={[
+            styles.navText, 
+            pathname === "/tabs/emergency-contacts" ? 
+              [styles.activeNavText, { color: theme.accentColor }] : 
+              { color: theme.secondaryTextColor }
+          ]}>Contacts</Text>
         </TouchableOpacity>
         
         {/* Center SOS Button */}
@@ -230,24 +259,34 @@ export default function Dashboard() {
           <TouchableOpacity style={styles.sosButton} onPress={() => router.push("/tabs/emergency")}> 
             <Ionicons name="alert" size={32} color="white" />
           </TouchableOpacity>
-          <Text style={styles.sosText}>SOS</Text>
+          <Text style={[styles.sosText, { color: theme.dangerColor }]}>SOS</Text>
         </View>
         
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/profile")}> 
           <Ionicons 
             name={pathname === "/tabs/profile" ? "person" : "person-outline"} 
             size={28} 
-            color={pathname === "/tabs/profile" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/profile" ? theme.accentColor : theme.secondaryTextColor} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/profile" && styles.activeNavText]}>Profile</Text>
+          <Text style={[
+            styles.navText, 
+            pathname === "/tabs/profile" ? 
+              [styles.activeNavText, { color: theme.accentColor }] : 
+              { color: theme.secondaryTextColor }
+          ]}>Profile</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/notifications")}> 
           <Ionicons 
             name={pathname === "/tabs/notifications" ? "notifications" : "notifications-outline"} 
             size={28} 
-            color={pathname === "/tabs/notifications" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/notifications" ? theme.accentColor : theme.secondaryTextColor} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/notifications" && styles.activeNavText]}>Notifications</Text>
+          <Text style={[
+            styles.navText, 
+            pathname === "/tabs/notifications" ? 
+              [styles.activeNavText, { color: theme.accentColor }] : 
+              { color: theme.secondaryTextColor }
+          ]}>Notifications</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -256,8 +295,7 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
-    backgroundColor: "#F8F9FA",
+    flex: 1,
   },
   header: { 
     flexDirection: "row", 
@@ -266,13 +304,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#EFEFEF",
-    backgroundColor: "#FFF"
   },
   greeting: { 
     fontSize: 20, 
     fontWeight: "700",
-    color: "#333"
   },
   content: {
     flex: 1,
@@ -282,13 +317,11 @@ const styles = StyleSheet.create({
     position: "absolute", 
     top: 65, 
     right: 15, 
-    backgroundColor: "white", 
     borderRadius: 10, 
     elevation: 5, 
     padding: 5, 
     width: 180, 
     zIndex: 1000,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -305,18 +338,15 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 16,
-    color: "#333"
   },
   logoutItem: {
     borderBottomWidth: 0
   },
   logoutText: {
     fontSize: 16,
-    color: "#FF3B30",
     fontWeight: "500"
   },
   card: {
-    backgroundColor: "#FFF",
     borderRadius: 12,
     padding: 5,
     marginBottom: 15,
@@ -337,16 +367,13 @@ const styles = StyleSheet.create({
   },
   weatherText: { 
     fontSize: 18, 
-    fontWeight: "bold", 
-    color: "#333"
+    fontWeight: "bold",
   },
   weatherSubText: { 
-    fontSize: 14, 
-    color: "#666", 
+    fontSize: 14,
     marginTop: 3
   },
   safetyTip: { 
-    backgroundColor: "#E3F2FD", 
     padding: 20, 
     borderRadius: 12, 
     marginBottom: 20,
@@ -365,19 +392,16 @@ const styles = StyleSheet.create({
   safetyTitle: { 
     fontSize: 22, 
     fontWeight: "bold",
-    color: "#1E90FF"
   },
   safetyText: { 
     fontSize: 16, 
     lineHeight: 24,
-    color: "#333"
   },
   sectionTitle: { 
     fontSize: 18, 
     fontWeight: "bold", 
     marginBottom: 12,
     marginTop: 5,
-    color: "#333"
   },
   toolsContainer: { 
     flexDirection: "row", 
@@ -408,7 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     textAlign: "center",
-    color: "#333"
   },
   alertsHeader: {
     flexDirection: "row",
@@ -417,12 +440,10 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   viewAllText: {
-    color: "#1E90FF",
     fontSize: 14,
     fontWeight: "500"
   },
   alertContainer: { 
-    backgroundColor: "#FFF", 
     padding: 15, 
     borderRadius: 12, 
     marginBottom: 15,
@@ -436,12 +457,10 @@ const styles = StyleSheet.create({
   },
   urgentAlert: {
     borderLeftColor: "#FF3B30",
-    backgroundColor: "#FFF5F5"
   },
   alertText: { 
     fontSize: 14, 
     fontWeight: "500",
-    color: "#333",
     lineHeight: 20
   },
   alertFooter: {
@@ -452,7 +471,6 @@ const styles = StyleSheet.create({
   },
   alertTime: { 
     fontSize: 12, 
-    color: "#888" 
   },
   urgentBadge: {
     backgroundColor: "#FF3B30",
@@ -471,7 +489,6 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   quickAccessButton: {
-    backgroundColor: "#FFF",
     borderRadius: 12,
     padding: 15,
     flexDirection: "row",
@@ -487,20 +504,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 10,
-    color: "#333"
   },
   navbar: { 
     flexDirection: "row", 
     justifyContent: "space-around", 
     alignItems: "center", 
     paddingVertical: 8, 
-    backgroundColor: "#FFF", 
     position: "absolute", 
     bottom: 0, 
     left: 0, 
     right: 0, 
     borderTopWidth: 1, 
-    borderTopColor: "#EFEFEF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
@@ -513,11 +527,9 @@ const styles = StyleSheet.create({
   },
   navText: {
     fontSize: 12,
-    color: "#777",
     marginTop: 2
   },
   activeNavText: {
-    color: "#1E90FF",
     fontWeight: "500"
   },
   sosButton: {
@@ -539,6 +551,5 @@ const styles = StyleSheet.create({
   sosText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#FF3B30"
   }
 });

@@ -1,9 +1,19 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Image, 
+  Alert 
+} from "react-native";
 import { useRouter } from "expo-router";
+import { useTheme } from "../context/ThemeContext";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -37,35 +47,52 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {/* Background Shapes */}
       <View style={styles.backgroundShapes}>
-        <View style={[styles.shape, styles.shape1]} />
-        <View style={[styles.shape, styles.shape2]} />
-        <View style={[styles.shape, styles.shape3]} />
+        <View style={[styles.shape, styles.shape1, { backgroundColor: theme.isDarkMode ? 'rgba(0, 102, 204, 0.2)' : 'rgba(0, 102, 204, 0.1)' }]} />
+        <View style={[styles.shape, styles.shape2, { backgroundColor: theme.isDarkMode ? 'rgba(0, 102, 204, 0.15)' : 'rgba(0, 102, 204, 0.08)' }]} />
+        <View style={[styles.shape, styles.shape3, { backgroundColor: theme.isDarkMode ? 'rgba(0, 102, 204, 0.25)' : 'rgba(0, 102, 204, 0.15)' }]} />
       </View>
 
       {/* Content Container with Shadow */}
-      <View style={styles.contentContainer}>
+      <View style={[styles.contentContainer, { backgroundColor: theme.cardBackground }]}>
         {/* Logo Section */}
-        <Image source={require("../assets/icons/unilert-logo-dark.png")} style={styles.logo} />
+        <Image 
+          source={theme.isDarkMode ? require("../assets/icons/unilert-logo-light.png") : require("../assets/icons/unilert-logo-dark.png")} 
+          style={styles.logo} 
+        />
         <Text style={styles.brand}>UNILERT</Text>
-        <Text style={styles.subtitle}>Login to your Account</Text>
+        <Text style={[styles.subtitle, { color: theme.textColor }]}>Login to your Account</Text>
 
         {/* Input Fields */}
         <TextInput
-          style={[styles.input, emailError ? styles.inputError : null]}
+          style={[
+            styles.input, 
+            { 
+              backgroundColor: theme.inputBackground,
+              borderColor: emailError ? theme.dangerColor : theme.borderColor,
+              color: theme.textColor
+            }
+          ]}
           placeholder="School Email"
-          placeholderTextColor="#555"
+          placeholderTextColor={theme.placeholderColor}
           onChangeText={validateEmail}
           keyboardType="email-address"
         />
-        {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+        {emailError ? <Text style={[styles.errorText, { color: theme.dangerColor }]}>{emailError}</Text> : null}
         
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            { 
+              backgroundColor: theme.inputBackground,
+              borderColor: theme.borderColor,
+              color: theme.textColor
+            }
+          ]}
           placeholder="Password"
-          placeholderTextColor="#555"
+          placeholderTextColor={theme.placeholderColor}
           secureTextEntry
           onChangeText={setPassword}
         />
@@ -78,7 +105,7 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>Log in</Text>
         </TouchableOpacity>
 
-        <Text style={styles.orText}>- Or sign in with -</Text>
+        <Text style={[styles.orText, { color: theme.secondaryTextColor }]}>- Or sign in with -</Text>
 
         {/* Google Sign In Only */}
         <View style={styles.socialContainer}>
@@ -86,11 +113,13 @@ export default function LoginScreen() {
             <Image source={require("../assets/icons/google.png")} style={styles.socialIcon} />
           </TouchableOpacity>
         </View>
-        <Text style={styles.schoolAccountText}>*Use your School Account</Text>
+        <Text style={[styles.schoolAccountText, { color: theme.secondaryTextColor }]}>*Use your School Account</Text>
 
         {/* Sign Up Link */}
         <TouchableOpacity onPress={() => router.push("/signup")}>
-          <Text style={styles.signupText}>Don't have an account? <Text style={styles.signupLink}>Sign up</Text></Text>
+          <Text style={[styles.signupText, { color: theme.textColor }]}>
+            Don't have an account? <Text style={[styles.signupLink, { color: theme.accentColor }]}>Sign up</Text>
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -103,7 +132,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#f5f9ff",
   },
   backgroundShapes: {
     position: 'absolute',
@@ -112,7 +140,6 @@ const styles = StyleSheet.create({
   },
   shape: {
     position: 'absolute',
-    backgroundColor: 'rgba(0, 102, 204, 0.1)',
     borderRadius: 50,
   },
   shape1: {
@@ -127,20 +154,17 @@ const styles = StyleSheet.create({
     height: 150,
     bottom: '15%',
     right: '-5%',
-    backgroundColor: 'rgba(0, 102, 204, 0.08)',
   },
   shape3: {
     width: 100,
     height: 100,
     top: '40%',
     right: '20%',
-    backgroundColor: 'rgba(0, 102, 204, 0.15)',
     borderRadius: 25,
   },
   contentContainer: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: 'white',
     padding: 30,
     borderRadius: 15,
     alignItems: 'center',
@@ -165,25 +189,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: "#333",
     marginBottom: 25,
   },
   input: {
     width: "100%",
     height: 55,
-    borderColor: "#ddd",
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 15,
     marginBottom: 15,
-    backgroundColor: "#F7F7F7",
     fontSize: 16,
   },
-  inputError: {
-    borderColor: "#ff3b30",
-  },
   errorText: {
-    color: "#ff3b30",
     fontSize: 12,
     alignSelf: "flex-start",
     marginBottom: 10,
@@ -209,7 +226,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   orText: {
-    color: "#555",
     marginVertical: 20,
   },
   socialContainer: {
@@ -224,17 +240,14 @@ const styles = StyleSheet.create({
   },
   schoolAccountText: {
     fontSize: 12,
-    color: "#555",
     marginBottom: 10,
     fontStyle: "italic",
   },
   signupText: {
-    color: "#333",
     marginTop: 20,
     fontSize: 15,
   },
   signupLink: {
-    color: "#003366",
     fontWeight: "bold",
   },
 });

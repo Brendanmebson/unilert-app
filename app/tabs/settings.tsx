@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { 
   View, 
   Text, 
@@ -8,19 +8,19 @@ import {
   TouchableOpacity, 
   Alert,
   StatusBar,
-  Platform,
-  useColorScheme
+  Platform
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Assuming Expo is used
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { useNavigation } from "@react-navigation/native";
 
 export default function SettingsScreen() {
-  // System theme detection
-  const deviceTheme = useColorScheme();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const navigation = useNavigation();
   
-  // State management with more organized structure and light mode by default
+  // State management with more organized structure
   const [settings, setSettings] = useState({
     appearance: {
-      darkMode: false, // Light mode by default
       widgetHomeScreen: false,
     },
     notifications: {
@@ -41,7 +41,7 @@ export default function SettingsScreen() {
     }
   });
 
-  // Update individual setting with immutable pattern
+  // Update individual setting
   const updateSetting = (category, setting, value) => {
     setSettings(prev => ({
       ...prev,
@@ -51,12 +51,6 @@ export default function SettingsScreen() {
       }
     }));
   };
-  
-  // Removed the auto-detection of system theme to ensure light mode is always the default
-  // We could still keep this function, but make it opt-in with a "Use System Theme" setting
-  
-  // Apply theme based on settings
-  const theme = settings.appearance.darkMode ? darkTheme : lightTheme;
   
   // Handler for options that need confirmation
   const handleSensitiveSetting = (category, setting, currentValue, message) => {
@@ -134,7 +128,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.mainContainer, {backgroundColor: theme.backgroundColor}]}>
-      <StatusBar barStyle={settings.appearance.darkMode ? "light-content" : "dark-content"} />
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
       
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         {/* Profile Section */}
@@ -154,7 +148,21 @@ export default function SettingsScreen() {
         
         {/* Preferences Settings */}
         {renderSectionHeader("Appearance", "color-palette-outline")}
-        {renderSettingSwitch("Dark Mode", "appearance", "darkMode")}
+        <TouchableOpacity 
+          style={[styles.settingItem, {backgroundColor: theme.cardBackground}]}
+          onPress={toggleTheme}
+        >
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, {color: theme.textColor}]}>Dark Mode</Text>
+          </View>
+          <Switch 
+            value={isDarkMode}
+            onValueChange={toggleTheme}
+            trackColor={{ false: theme.switchTrackOff, true: theme.switchTrackOn }}
+            thumbColor={isDarkMode ? theme.switchThumbOn : theme.switchThumbOff}
+            ios_backgroundColor={theme.switchTrackOff}
+          />
+        </TouchableOpacity>
         {renderSettingSwitch("Add Widget to Home Screen", "appearance", "widgetHomeScreen")}
         
         {/* Notification Settings */}
@@ -220,7 +228,7 @@ export default function SettingsScreen() {
               "Are you sure you want to log out?", 
               [
                 { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: () => Alert.alert("Logged Out", "You have been logged out.") }
+                { text: "Logout", style: "destructive", onPress: () => navigation.replace("Login") }
               ]
             )}
           >
@@ -232,37 +240,6 @@ export default function SettingsScreen() {
   );
 }
 
-// Theme configurations
-const lightTheme = {
-  backgroundColor: "#f8f9fa",
-  cardBackground: "#ffffff",
-  textColor: "#333333",
-  secondaryTextColor: "#666666",
-  accentColor: "#007bff",
-  switchTrackOn: "#007bff",
-  switchTrackOff: "#e2e2e2",
-  switchThumbOn: "#ffffff",
-  switchThumbOff: "#f4f3f4",
-  dangerColor: "#dc3545",
-  borderColor: "#e1e4e8",
-  profileGradient: ["#4e54c8", "#8f94fb"],
-};
-
-const darkTheme = {
-  backgroundColor: "#121212",
-  cardBackground: "#1e1e1e",
-  textColor: "#f1f1f1",
-  secondaryTextColor: "#a0a0a0",
-  accentColor: "#4dabf7",
-  switchTrackOn: "#4dabf7",
-  switchTrackOff: "#3a3a3a",
-  switchThumbOn: "#ffffff",
-  switchThumbOff: "#b7b7b7",
-  dangerColor: "#f77",
-  borderColor: "#2c2c2c",
-  profileGradient: ["#2b303b", "#3a3f50"],
-};
-
 const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
@@ -273,6 +250,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingBottom: 32,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
   },
   sectionHeader: {
     flexDirection: "row",

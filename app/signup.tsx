@@ -7,31 +7,48 @@ export default function SignupScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [matricNo, setMatricNo] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   const validateEmail = (text) => {
     setEmail(text);
     
     // Check if it's a valid school email
     if (text && !text.includes("@") || (text && !text.toLowerCase().endsWith(".edu.ng"))) {
-      setEmailError("Please use a valid school email (.edu.ng)");
+      setEmailError("Please use a valid school email address that ends with .edu.ng");
     } else {
       setEmailError("");
     }
   };
 
+  const validateConfirmPassword = (text) => {
+    setConfirmPassword(text);
+    
+    if (password && text && password !== text) {
+      setPasswordError("Passwords do not match");
+    } else {
+      setPasswordError("");
+    }
+  };
+
   const handleSignup = () => {
     // Check if all fields are filled
-    if (!name || !email || !password || !phone || !matricNo) {
+    if (!name || !email || !password || !confirmPassword || !matricNo) {
       Alert.alert("Error", "Please fill all fields");
       return;
     }
 
     // Validate school email
     if (!email || !email.includes("@") || !email.toLowerCase().endsWith(".edu.ng")) {
-      setEmailError("Please use a valid school email (.edu.ng)");
+      setEmailError("Please use a valid school email address that ends with .edu.ng");
+      return;
+    }
+
+    // Validate password match
+    if (password !== confirmPassword) {
+      setPasswordError("Passwords do not match");
       return;
     }
 
@@ -69,15 +86,12 @@ export default function SignupScreen() {
           keyboardType="email-address"
           onChangeText={validateEmail}
         />
-        {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+        {emailError ? (
+          <Text style={styles.errorText}>{emailError}</Text>
+        ) : (
+          <Text style={styles.helperText}>Use a valid school email address (.edu.ng)</Text>
+        )}
         
-        <TextInput
-          style={styles.input}
-          placeholder="Phone Number"
-          placeholderTextColor="#555"
-          keyboardType="phone-pad"
-          onChangeText={setPhone}
-        />
         <TextInput
           style={styles.input}
           placeholder="Matric Number"
@@ -91,6 +105,14 @@ export default function SignupScreen() {
           secureTextEntry
           onChangeText={setPassword}
         />
+        <TextInput
+          style={[styles.input, passwordError ? styles.inputError : null]}
+          placeholder="Confirm Password"
+          placeholderTextColor="#555"
+          secureTextEntry
+          onChangeText={validateConfirmPassword}
+        />
+        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
         {/* Signup Button */}
         <TouchableOpacity 
@@ -208,6 +230,13 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#ff3b30",
+    fontSize: 12,
+    alignSelf: "flex-start",
+    marginBottom: 10,
+    marginTop: -10,
+  },
+  helperText: {
+    color: "#666",
     fontSize: 12,
     alignSelf: "flex-start",
     marginBottom: 10,

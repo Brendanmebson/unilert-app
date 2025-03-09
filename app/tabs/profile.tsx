@@ -35,11 +35,11 @@ export default function ProfileScreen() {
   
   // User profile data state
   const [profileData, setProfileData] = useState({
-    name: "Emmanuel James",
+    fullname: "Emmanuel James",
     matricNo: "21/2345",
     phoneNo: "08023463176",
-    course: "S/E",
-    department: "S/E",
+    course: "Software Engineering",
+    department: "Software Engineering",
     email: "emmanuel@student.babcock.edu.ng",
     level: "300 Level",
     profileImage: "https://via.placeholder.com/100"
@@ -84,8 +84,8 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
       // Validate inputs
-      if (!tempData.name || !tempData.phoneNo) {
-        Alert.alert("Validation Error", "Name and Phone Number are required fields");
+      if (!tempData.fullname || !tempData.phoneNo) {
+        Alert.alert("Validation Error", "Fullname and Phone Number are required fields");
         setLoading(false);
         return;
       }
@@ -115,8 +115,6 @@ export default function ProfileScreen() {
         {
           text: "Logout",
           onPress: () => {
-            // Clear saved credentials in a real app
-            // AsyncStorage.removeItem('userToken');
             navigation.replace("Login");
           },
           style: "destructive"
@@ -272,7 +270,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
         
-        <Text style={styles.profileName}>{editing ? tempData.name : profileData.name}</Text>
+        <Text style={styles.profilefullname}>{editing ? tempData.fullname : profileData.fullname}</Text>
         <Text style={styles.profileRole}>Student</Text>
         
         {/* User Details */}
@@ -299,12 +297,14 @@ export default function ProfileScreen() {
           </View>
 
           <InfoField 
-            label="NAME:" 
-            value={profileData.name}
-            tempValue={tempData.name}
+            label="FULLNAME:" 
+            value={profileData.fullname}
+            tempValue={tempData.fullname}
             editing={editing}
-            onChangeText={(value) => handleTextChange('name', value)}
-            editable={true}
+            onChangeText={(value) => handleTextChange('fullname', value)}
+            editable={false}
+            helperText="Fullname cannot be changed"
+
           />
 
           <InfoField 
@@ -328,13 +328,14 @@ export default function ProfileScreen() {
           />
           
           <InfoField 
-            label="Email:" 
+            label="School Email:" 
             value={profileData.email}
             tempValue={tempData.email}
             editing={editing}
             onChangeText={(value) => handleTextChange('email', value)}
-            editable={true}
+            editable={false}
             keyboardType="email-address"
+            helperText="School Email cannot be changed"
           />
 
           <InfoField 
@@ -343,9 +344,7 @@ export default function ProfileScreen() {
             tempValue={tempData.course}
             editing={editing}
             onChangeText={(value) => handleTextChange('course', value)}
-            editable={false}
-            helperText="Contact admin to change course"
-          />
+            editable={true}          />
 
           <InfoField 
             label="Department:" 
@@ -353,8 +352,7 @@ export default function ProfileScreen() {
             tempValue={tempData.department}
             editing={editing}
             onChangeText={(value) => handleTextChange('department', value)}
-            editable={false}
-            helperText="Contact admin to change department"
+            editable={true}
           />
           
           <InfoField 
@@ -571,7 +569,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 5
   },
-  profileName: {
+  profilefullname: {
     textAlign: 'center',
     fontSize: 22,
     fontWeight: 'bold',

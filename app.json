@@ -38,8 +38,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {
-        "origin": false
+      "supabaseUrl": "https://anyhhsssufsfksyvzkro.supabase.co",
+      "supabaseKey": "your-supabase-anon-key-here"
       },
       "eas": {
         "projectId": "d55e33d1-84b4-4f45-9d39-829d254de06e"
