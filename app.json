@@ -39,11 +39,10 @@
     },
     "extra": {
       "supabaseUrl": "https://anyhhsssufsfksyvzkro.supabase.co",
-      "supabaseKey": "your-supabase-anon-key-here"
-      },
-      "eas": {
-        "projectId": "d55e33d1-84b4-4f45-9d39-829d254de06e"
-      }
+      "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFueWhoc3NzdWZzZmtzeXZ6a3JvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE0NDgxMDEsImV4cCI6MjA1NzAyNDEwMX0.H7_YYjJJAhgWVSS5_TtmJEik39oY3MTN5jqU5Aof39c"
+    },
+    "eas": {
+      "projectId": "d55e33d1-84b4-4f45-9d39-829d254de06e"
     },
     "runtimeVersion": {
       "policy": "appVersion"

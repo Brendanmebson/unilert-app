@@ -15,15 +15,12 @@ import {
 import { Ionicons, Entypo, MaterialIcons, Feather, FontAwesome } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-// Import pages
-import SettingsScreen from "./settings"; // Adjust the path as needed
-import HelpScreen from "./help"; // Adjust the path as needed
-import LoginScreen from "../login"; // Adjust the path as needed
+import { useAuth } from "../../context/AuthContext";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
+  const { userProfile, updateProfile, signOut, loading: authLoading } = useAuth();
+  
   const [menuVisible, setMenuVisible] = useState(false);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,24 +30,17 @@ export default function ProfileScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   
-  // User profile data state
-  const [profileData, setProfileData] = useState({
-    fullname: "Emmanuel James",
-    matricNo: "21/2345",
-    phoneNo: "08023463176",
-    course: "Software Engineering",
-    department: "Software Engineering",
-    email: "emmanuel@student.babcock.edu.ng",
-    level: "300 Level",
-    profileImage: "https://via.placeholder.com/100"
-  });
-  
   // Temporary state for editing
-  const [tempData, setTempData] = useState({...profileData});
+  const [tempData, setTempData] = useState({});
   
-  // Load user data on mount
+  // Set temp data whenever user profile changes
   useEffect(() => {
-    loadUserData();
+    if (userProfile) {
+      setTempData({...userProfile});
+    }
+  }, [userProfile]);
+  
+  useEffect(() => {
     requestPermissions();
   }, []);
   
@@ -60,46 +50,6 @@ export default function ProfileScreen() {
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to upload images.');
       }
-    }
-  };
-  
-  const loadUserData = async () => {
-    try {
-      setLoading(true);
-      // In a real app, this would come from an API or AsyncStorage
-      const savedData = await AsyncStorage.getItem('userProfile');
-      if (savedData) {
-        const userData = JSON.parse(savedData);
-        setProfileData(userData);
-        setTempData(userData);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading user data:", error);
-      setLoading(false);
-    }
-  };
-  
-  const saveUserData = async () => {
-    try {
-      setLoading(true);
-      // Validate inputs
-      if (!tempData.fullname || !tempData.phoneNo) {
-        Alert.alert("Validation Error", "Fullname and Phone Number are required fields");
-        setLoading(false);
-        return;
-      }
-      
-      // In a real app, this would be sent to an API
-      await AsyncStorage.setItem('userProfile', JSON.stringify(tempData));
-      setProfileData(tempData);
-      setEditing(false);
-      setLoading(false);
-      Alert.alert("Success", "Profile updated successfully");
-    } catch (error) {
-      console.error("Error saving user data:", error);
-      setLoading(false);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
     }
   };
   
@@ -114,7 +64,8 @@ export default function ProfileScreen() {
         },
         {
           text: "Logout",
-          onPress: () => {
+          onPress: async () => {
+            await signOut();
             navigation.replace("Login");
           },
           style: "destructive"
@@ -129,14 +80,48 @@ export default function ProfileScreen() {
       saveUserData();
     } else {
       // If we're starting to edit
-      setTempData({...profileData});
+      setTempData({...userProfile});
       setEditing(true);
     }
   };
   
   const handleCancel = () => {
-    setTempData({...profileData});
+    setTempData({...userProfile});
     setEditing(false);
+  };
+  
+  const saveUserData = async () => {
+    try {
+      setLoading(true);
+      // Validate inputs
+      if (!tempData.fullname || !tempData.phoneNo) {
+        Alert.alert("Validation Error", "Fullname and Phone Number are required fields");
+        setLoading(false);
+        return;
+      }
+      
+      // Only update fields that can be edited
+      const updates = {
+        phoneNo: tempData.phoneNo,
+        course: tempData.course,
+        department: tempData.department,
+        profileImage: tempData.profileImage
+      };
+      
+      const { success, error } = await updateProfile(updates);
+      
+      if (success) {
+        setEditing(false);
+        Alert.alert("Success", "Profile updated successfully");
+      } else {
+        Alert.alert("Error", error || "Failed to update profile. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error saving user data:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
   
   const pickImage = async (source) => {
@@ -161,7 +146,7 @@ export default function ProfileScreen() {
         });
       }
       
-      if (!result.canceled) {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         // Update the temporary data
         setTempData({
           ...tempData,
@@ -170,17 +155,11 @@ export default function ProfileScreen() {
         
         // If we're not in editing mode, save the image immediately
         if (!editing) {
-          setProfileData({
-            ...profileData,
+          // In a real app, we would upload the image to storage first
+          // then update the profile with the URL
+          await updateProfile({
             profileImage: result.assets[0].uri
           });
-          
-          // Save to storage
-          const updatedData = {
-            ...profileData,
-            profileImage: result.assets[0].uri
-          };
-          await AsyncStorage.setItem('userProfile', JSON.stringify(updatedData));
           Alert.alert("Success", "Profile picture updated successfully");
         }
       }
@@ -197,18 +176,12 @@ export default function ProfileScreen() {
     });
   };
 
-  // If showing settings or help screens
-  if (showSettings) {
-    return <SettingsScreen onBack={() => setShowSettings(false)} />;
-  }
-  
-  if (showHelp) {
-    return <HelpScreen onBack={() => setShowHelp(false)} />;
-  }
+  // Import and render Settings or Help screens if needed
+  // For this example we'll just go back to the previous screen
 
   return (
     <View style={styles.container}>
-      {loading && (
+      {(loading || authLoading) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#FFD700" />
         </View>
@@ -231,7 +204,7 @@ export default function ProfileScreen() {
               style={styles.dropdownItem} 
               onPress={() => {
                 setMenuVisible(false);
-                setShowSettings(true);
+                navigation.navigate("Settings");
               }}
             >
               <Ionicons name="settings-outline" size={18} color="black" />
@@ -241,7 +214,7 @@ export default function ProfileScreen() {
               style={styles.dropdownItem} 
               onPress={() => {
                 setMenuVisible(false);
-                setShowHelp(true);
+                navigation.navigate("Help");
               }}
             >
               <Feather name="help-circle" size={18} color="black" />
@@ -259,7 +232,11 @@ export default function ProfileScreen() {
         {/* Profile Picture */}
         <View style={styles.profileContainer}>
           <Image 
-            source={{ uri: editing ? tempData.profileImage : profileData.profileImage }} 
+            source={{ 
+              uri: editing 
+                ? tempData.profileImage || 'https://via.placeholder.com/100'
+                : userProfile?.profileImage || 'https://via.placeholder.com/100'
+            }} 
             style={styles.profileImage} 
           />
           <TouchableOpacity 
@@ -270,7 +247,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
         
-        <Text style={styles.profilefullname}>{editing ? tempData.fullname : profileData.fullname}</Text>
+        <Text style={styles.profilefullname}>{editing ? tempData.fullname : userProfile?.fullname || "User Name"}</Text>
         <Text style={styles.profileRole}>Student</Text>
         
         {/* User Details */}
@@ -298,18 +275,17 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="FULLNAME:" 
-            value={profileData.fullname}
+            value={userProfile?.fullname}
             tempValue={tempData.fullname}
             editing={editing}
             onChangeText={(value) => handleTextChange('fullname', value)}
             editable={false}
             helperText="Fullname cannot be changed"
-
           />
 
           <InfoField 
             label="Matric No:" 
-            value={profileData.matricNo}
+            value={userProfile?.matricNo}
             tempValue={tempData.matricNo}
             editing={editing}
             onChangeText={(value) => handleTextChange('matricNo', value)}
@@ -319,7 +295,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Phone No:" 
-            value={profileData.phoneNo}
+            value={userProfile?.phoneNo}
             tempValue={tempData.phoneNo}
             editing={editing}
             onChangeText={(value) => handleTextChange('phoneNo', value)}
@@ -329,7 +305,7 @@ export default function ProfileScreen() {
           
           <InfoField 
             label="School Email:" 
-            value={profileData.email}
+            value={userProfile?.email}
             tempValue={tempData.email}
             editing={editing}
             onChangeText={(value) => handleTextChange('email', value)}
@@ -340,15 +316,16 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Course:" 
-            value={profileData.course}
+            value={userProfile?.course}
             tempValue={tempData.course}
             editing={editing}
             onChangeText={(value) => handleTextChange('course', value)}
-            editable={true}          />
+            editable={true}
+          />
 
-          <InfoField 
+<InfoField 
             label="Department:" 
-            value={profileData.department}
+            value={userProfile?.department}
             tempValue={tempData.department}
             editing={editing}
             onChangeText={(value) => handleTextChange('department', value)}
@@ -357,7 +334,7 @@ export default function ProfileScreen() {
           
           <InfoField 
             label="Level:" 
-            value={profileData.level}
+            value={userProfile?.level}
             tempValue={tempData.level}
             editing={editing}
             onChangeText={(value) => handleTextChange('level', value)}

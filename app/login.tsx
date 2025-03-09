@@ -6,17 +6,22 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   Image, 
-  Alert 
+  Alert,
+  ActivityIndicator
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { theme } = useTheme();
+  const { signIn, loading } = useAuth();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -29,21 +34,46 @@ export default function LoginScreen() {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    console.log("Login button pressed");
+    
+    // Reset errors
+    setEmailError("");
+    setPasswordError("");
+    
     // Validate email before proceeding
     if (!email || !email.includes("@") || !email.toLowerCase().endsWith(".edu.ng")) {
+      console.log("Email validation failed");
       setEmailError("Please use a valid school email (.edu.ng)");
       return;
     }
     
     // Check if password is entered
     if (!password) {
-      Alert.alert("Error", "Please enter your password");
+      console.log("Password validation failed");
+      setPasswordError("Please enter your password");
       return;
     }
     
-    // If validation passes, navigate to dashboard
-    router.replace("/tabs/dashboard");
+    console.log("Attempting to sign in with:", email);
+    
+    try {
+      // Attempt to sign in
+      const { success, error } = await signIn(email, password);
+      
+      console.log("Sign in result:", success, error);
+      
+      if (success) {
+        console.log("Login successful, navigating to dashboard");
+        router.replace("/tabs/dashboard");
+      } else {
+        console.log("Login failed:", error);
+        Alert.alert("Login Failed", error || "Invalid email or password");
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      Alert.alert("Login Error", "An unexpected error occurred");
+    }
   };
 
   return (
@@ -79,6 +109,7 @@ export default function LoginScreen() {
           placeholderTextColor={theme.placeholderColor}
           onChangeText={validateEmail}
           keyboardType="email-address"
+          value={email}
         />
         {emailError ? <Text style={[styles.errorText, { color: theme.dangerColor }]}>{emailError}</Text> : null}
         
@@ -87,7 +118,7 @@ export default function LoginScreen() {
             styles.input,
             { 
               backgroundColor: theme.inputBackground,
-              borderColor: theme.borderColor,
+              borderColor: passwordError ? theme.dangerColor : theme.borderColor,
               color: theme.textColor
             }
           ]}
@@ -95,14 +126,21 @@ export default function LoginScreen() {
           placeholderTextColor={theme.placeholderColor}
           secureTextEntry
           onChangeText={setPassword}
+          value={password}
         />
+        {passwordError ? <Text style={[styles.errorText, { color: theme.dangerColor }]}>{passwordError}</Text> : null}
 
         {/* Login Button */}
         <TouchableOpacity 
           style={styles.button} 
           onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>Log in</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Log in</Text>
+          )}
         </TouchableOpacity>
 
         <Text style={[styles.orText, { color: theme.secondaryTextColor }]}>- Or sign in with -</Text>

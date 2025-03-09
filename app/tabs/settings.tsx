@@ -12,11 +12,23 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 
 export default function SettingsScreen() {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { userProfile, signOut } = useAuth();
   const navigation = useNavigation();
+  
+  // Get initials for the profile icon
+  const getInitials = () => {
+    if (!userProfile?.fullname) return "U";
+    
+    const names = userProfile.fullname.split(' ');
+    if (names.length === 1) return names[0].charAt(0).toUpperCase();
+    
+    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+  };
   
   // State management with more organized structure
   const [settings, setSettings] = useState({
@@ -134,14 +146,18 @@ export default function SettingsScreen() {
         {/* Profile Section */}
         <TouchableOpacity 
           style={[styles.profileSection, {backgroundColor: theme.cardBackground}]}
-          onPress={() => navigateTo("Profile")}
+          onPress={() => navigation.navigate("Profile")}
         >
           <View style={styles.profileImagePlaceholder}>
-            <Text style={styles.profileInitials}>EJ</Text>
+            <Text style={styles.profileInitials}>{getInitials()}</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, {color: theme.textColor}]}>Emmanuel James</Text>
-            <Text style={[styles.profileEmail, {color: theme.secondaryTextColor}]}>emmanuel@student.babcock.edu.ng</Text>
+            <Text style={[styles.profileName, {color: theme.textColor}]}>
+              {userProfile?.fullname || "User Name"}
+            </Text>
+            <Text style={[styles.profileEmail, {color: theme.secondaryTextColor}]}>
+              {userProfile?.email || "user@example.com"}
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.secondaryTextColor} />
         </TouchableOpacity>
@@ -165,43 +181,28 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         {renderSettingSwitch("Add Widget to Home Screen", "appearance", "widgetHomeScreen")}
         
+        {/* Rest of settings sections */}
         {/* Notification Settings */}
         {renderSectionHeader("Notifications", "notifications-outline")}
         {renderSettingSwitch("App Notifications", "notifications", "app")}
         {renderSettingSwitch("Email Notifications", "notifications", "email")}
         {renderSettingSwitch("Marketing Emails", "notifications", "marketing")}
-        {renderSettingNavigation("Notification Preferences", "NotificationPreferences", "options-outline", "Configure which types of notifications you receive")}
         
         {/* Account Settings */}
         {renderSectionHeader("Account", "person-outline")}
         {renderSettingNavigation("Change Password", "ChangePassword")}
-        {renderSettingNavigation("Manage Subscriptions", "Subscriptions")}
-        {renderSettingNavigation("Two-Factor Authentication", "TwoFactorAuth")}
-        {renderSettingNavigation("Linked Accounts", "LinkedAccounts")}
         {renderSettingNavigation("Language", "LanguageSettings", "language-outline", "English (US)")}
         
         {/* Privacy Settings */}
         {renderSectionHeader("Privacy & Security", "shield-checkmark-outline")}
         {renderSettingSwitch("Location Access", "privacy", "locationAccess", true, "Allow this app to access your location?")}
         {renderSettingSwitch("Allow Data Collection", "privacy", "dataCollection", true, "Allow us to collect anonymous usage data to improve the app?")}
-        {renderSettingNavigation("Ad Preferences", "AdPreferences")}
-        {renderSettingSwitch(
-          "Enable Fingerprint Authentication", 
-          "privacy", 
-          "fingerprint", 
-          true, 
-          "Use your fingerprint to unlock the app?",
-          Platform.OS !== 'ios' && Platform.OS !== 'android',
-          Platform.OS !== 'ios' && Platform.OS !== 'android' ? "Not available on this device" : null
-        )}
         {renderSettingNavigation("Privacy Policy", "PrivacyPolicy")}
         
         {/* Update Settings */}
         {renderSectionHeader("Updates & Data", "refresh-outline")}
         {renderSettingSwitch("Allow Auto App Updates", "updates", "autoUpdate")}
         {renderSettingSwitch("Update on Wi-Fi Only", "updates", "updateOnWifiOnly", false, "", !settings.updates.autoUpdate)}
-        {renderSettingSwitch("Background App Refresh", "updates", "backgroundAppRefresh")}
-        {renderSettingSwitch("Use Cellular Data", "updates", "useCellularData", false, "", !settings.updates.backgroundAppRefresh)}
         {renderSettingNavigation("Check for Updates", "CheckUpdates", "download-outline")}
         
         {/* Additional Info */}
@@ -218,9 +219,6 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => navigateTo("Terms")}>
             <Text style={[styles.footerText, {color: theme.accentColor}]}>Terms and Conditions</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigateTo("About")}>
-            <Text style={[styles.footerText, {color: theme.accentColor}]}>About Us</Text>
-          </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.dangerButton, {borderColor: theme.dangerColor}]}
             onPress={() => Alert.alert(
@@ -228,7 +226,14 @@ export default function SettingsScreen() {
               "Are you sure you want to log out?", 
               [
                 { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: () => navigation.replace("Login") }
+                { 
+                  text: "Logout", 
+                  style: "destructive", 
+                  onPress: async () => {
+                    await signOut();
+                    navigation.replace("Login");
+                  }
+                }
               ]
             )}
           >

@@ -1,9 +1,22 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Image, 
+  Alert,
+  ActivityIndicator,
+  ScrollView
+} from "react-native";
 import { useRouter } from "expo-router";
+import { useAuth } from "../context/AuthContext";
 
 export default function SignupScreen() {
   const router = useRouter();
+  const { signUp, loading } = useAuth();
+  
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,27 +46,68 @@ export default function SignupScreen() {
     }
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
+    console.log("Sign up button pressed");
+    
     // Check if all fields are filled
     if (!name || !email || !password || !confirmPassword || !matricNo) {
-      Alert.alert("Error", "Please fill all fields");
+      console.log("Missing required fields:", {
+        name: !!name,
+        email: !!email,
+        password: !!password,
+        confirmPassword: !!confirmPassword,
+        matricNo: !!matricNo
+      });
+      Alert.alert("Error", "Please fill all required fields");
       return;
     }
-
+  
     // Validate school email
     if (!email || !email.includes("@") || !email.toLowerCase().endsWith(".edu.ng")) {
+      console.log("Email validation failed:", email);
       setEmailError("Please use a valid school email address that ends with .edu.ng");
       return;
     }
-
+  
     // Validate password match
     if (password !== confirmPassword) {
+      console.log("Password match validation failed");
       setPasswordError("Passwords do not match");
       return;
     }
-
-    // If all validations pass, navigate to login screen
-    router.replace("/login");
+  
+    const userData = {
+      fullname: name,
+      matricNo,
+      phoneNo: "", // Can be updated later
+      course: "Not specified", // Default value, user will update in profile
+      department: "Not specified", // Default value, user will update in profile
+      level: "Not specified" // Default value, user will update in profile
+    };
+  
+    console.log("Attempting to sign up with:", email);
+    console.log("User data:", userData);
+  
+    try {
+      const { success, error } = await signUp(email, password, userData);
+      
+      console.log("Sign up result:", success, error);
+      
+      if (success) {
+        console.log("Sign up successful");
+        Alert.alert(
+          "Account Created", 
+          "Your account has been created successfully. Please check your email for verification.",
+          [{ text: "OK", onPress: () => router.replace("/login") }]
+        );
+      } else {
+        console.log("Sign up failed:", error);
+        Alert.alert("Signup Failed", error || "Failed to create account. Please try again.");
+      }
+    } catch (err) {
+      console.error("Sign up error:", err);
+      Alert.alert("Signup Error", "An unexpected error occurred");
+    }
   };
 
   return (
@@ -65,80 +119,94 @@ export default function SignupScreen() {
         <View style={[styles.shape, styles.shape3]} />
       </View>
 
-      {/* Content Container with Shadow */}
-      <View style={styles.contentContainer}>
-        {/* Logo Section */}
-        <Image source={require("../assets/icons/unilert-logo-dark.png")} style={styles.logo} />
-        <Text style={styles.brand}>UNILERT</Text>
-        <Text style={styles.subtitle}>Create your Account</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Content Container with Shadow */}
+        <View style={styles.contentContainer}>
+          {/* Logo Section */}
+          <Image source={require("../assets/icons/unilert-logo-dark.png")} style={styles.logo} />
+          <Text style={styles.brand}>UNILERT</Text>
+          <Text style={styles.subtitle}>Create your Account</Text>
 
-        {/* Input Fields */}
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          placeholderTextColor="#555"
-          onChangeText={setName}
-        />
-        <TextInput
-          style={[styles.input, emailError ? styles.inputError : null]}
-          placeholder="School Email"
-          placeholderTextColor="#555"
-          keyboardType="email-address"
-          onChangeText={validateEmail}
-        />
-        {emailError ? (
-          <Text style={styles.errorText}>{emailError}</Text>
-        ) : (
-          <Text style={styles.helperText}>Use a valid school email address (.edu.ng)</Text>
-        )}
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Matric Number"
-          placeholderTextColor="#555"
-          onChangeText={setMatricNo}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#555"
-          secureTextEntry
-          onChangeText={setPassword}
-        />
-        <TextInput
-          style={[styles.input, passwordError ? styles.inputError : null]}
-          placeholder="Confirm Password"
-          placeholderTextColor="#555"
-          secureTextEntry
-          onChangeText={validateConfirmPassword}
-        />
-        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+          {/* Input Fields */}
+          <TextInput
+            style={styles.input}
+            placeholder="Full Name"
+            placeholderTextColor="#555"
+            onChangeText={setName}
+            value={name}
+          />
+          <TextInput
+            style={[styles.input, emailError ? styles.inputError : null]}
+            placeholder="School Email"
+            placeholderTextColor="#555"
+            keyboardType="email-address"
+            onChangeText={validateEmail}
+            value={email}
+          />
+          {emailError ? (
+            <Text style={styles.errorText}>{emailError}</Text>
+          ) : (
+            <Text style={styles.helperText}>Use a valid school email address (.edu.ng)</Text>
+          )}
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Matric Number"
+            placeholderTextColor="#555"
+            onChangeText={setMatricNo}
+            value={matricNo}
+          />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#555"
+            secureTextEntry
+            onChangeText={setPassword}
+            value={password}
+          />
+          <TextInput
+            style={[styles.input, passwordError ? styles.inputError : null]}
+            placeholder="Confirm Password"
+            placeholderTextColor="#555"
+            secureTextEntry
+            onChangeText={validateConfirmPassword}
+            value={confirmPassword}
+          />
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
-        {/* Signup Button */}
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={handleSignup}
-        >
-          <Text style={styles.buttonText}>Sign Up</Text>
-        </TouchableOpacity>
+          {/* Signup Button */}
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={handleSignup}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
+          </TouchableOpacity>
 
-        <Text style={styles.orText}>- Or sign up with -</Text>
+          <Text style={styles.orText}>- Or sign up with -</Text>
 
-        {/* Google Sign Up Only */}
-        <View style={styles.socialContainer}>
-          <TouchableOpacity>
-            <Image source={require("../assets/icons/google.png")} style={styles.socialIcon} />
+          {/* Google Sign Up Only */}
+          <View style={styles.socialContainer}>
+            <TouchableOpacity>
+              <Image source={require("../assets/icons/google.png")} style={styles.socialIcon} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.schoolAccountText}>*Use your School Account</Text>
+
+          {/* Login Link */}
+          <TouchableOpacity onPress={() => router.push("/login")}>
+            <Text style={styles.loginText}>
+              Already have an account? <Text style={styles.loginLink}>Log in</Text>
+            </Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.schoolAccountText}>*Use your School Account</Text>
-
-        {/* Login Link */}
-        <TouchableOpacity onPress={() => router.push("/login")}>
-          <Text style={styles.loginText}>
-            Already have an account? <Text style={styles.loginLink}>Log in</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -150,6 +218,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     backgroundColor: "#f5f9ff",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 20,
   },
   backgroundShapes: {
     position: 'absolute',

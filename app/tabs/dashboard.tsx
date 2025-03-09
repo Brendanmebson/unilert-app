@@ -13,6 +13,7 @@ import {
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 
 // Get screen dimensions for responsive design
 const { width } = Dimensions.get("window");
@@ -21,10 +22,16 @@ export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const { theme } = useTheme();
+  const { userProfile, signOut } = useAuth();
   
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const userName = "Emmanuel";
+  
+  // Get user's first name from the full name
+  const userName = userProfile?.fullname 
+    ? userProfile.fullname.split(' ')[0] 
+    : "User";
+    
   const [alerts, setAlerts] = useState([
     {
       id: 1,
@@ -52,7 +59,7 @@ export default function Dashboard() {
     // Rotate safety tips every 24 hours
     const tipIndex = Math.floor(new Date().getDate() % safetyTips.length);
     setCurrentTipIndex(tipIndex);
-  }, []);
+  }, [userProfile]);
 
   const updateGreeting = () => {
     const hour = new Date().getHours();
@@ -70,6 +77,25 @@ export default function Dashboard() {
     if (showDropdown) {
       setShowDropdown(false);
     }
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Logout", 
+          style: "destructive", 
+          onPress: async () => {
+            await signOut();
+            router.replace("/login");
+          }
+        }
+      ]
+    );
   };
 
   // Function to show Coming Soon alert for specific features
@@ -116,10 +142,7 @@ export default function Dashboard() {
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.dropdownItem, styles.logoutItem]} 
-            onPress={() => {
-              router.push("../login");
-              setShowDropdown(false);
-            }}
+            onPress={handleLogout}
           >
             <Ionicons name="log-out-outline" size={20} color={theme.dangerColor} style={styles.dropdownIcon} />
             <Text style={[styles.logoutText, { color: theme.dangerColor }]}>Logout</Text>
