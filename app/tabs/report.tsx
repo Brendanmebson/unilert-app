@@ -17,8 +17,11 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
-export default function ReportScreen({ navigation }) {
+export default function ReportScreen() {
+  const router = useRouter();
+  
   // Form state
   const [name, setName] = useState("");
   const [matricNo, setMatricNo] = useState("");
@@ -35,10 +38,12 @@ export default function ReportScreen({ navigation }) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [locationAddress, setLocationAddress] = useState("");
+  const [locationPermission, setLocationPermission] = useState("unknown");
 
   // Check for required permissions on component mount
   useEffect(() => {
     (async () => {
+      // Check camera permissions
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       if (cameraStatus !== 'granted') {
         Alert.alert(
@@ -47,8 +52,54 @@ export default function ReportScreen({ navigation }) {
           [{ text: "OK" }]
         );
       }
+      
+      // Check location permissions
+      checkLocationPermission();
     })();
   }, []);
+
+  const checkLocationPermission = async () => {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      setLocationPermission(status);
+      
+      if (status === "granted") {
+        getLocation();
+      }
+    } catch (error) {
+      console.error("Error checking location permission:", error);
+    }
+  };
+
+  // Check and request location permission
+  const checkAndRequestLocationPermission = async () => {
+    try {
+      let { status } = await Location.getForegroundPermissionsAsync();
+      
+      if (status !== "granted") {
+        let { status: newStatus } = await Location.requestForegroundPermissionsAsync();
+        setLocationPermission(newStatus);
+        
+        if (newStatus === "granted") {
+          // Get location automatically once permission is granted
+          getLocation();
+          Alert.alert("Success", "Location permission granted");
+        } else {
+          Alert.alert(
+            "Permission Denied",
+            "Location permission is needed for emergency response. Please enable it in your device settings.",
+            [{ text: "OK" }]
+          );
+        }
+      } else {
+        // Permission already granted, get location
+        getLocation();
+      }
+    } catch (error) {
+      console.error("Error checking location permission:", error);
+      Alert.alert("Error", "Could not access location services");
+    }
+  };
 
   // Validate form before submission
   const validateForm = () => {
@@ -97,6 +148,11 @@ export default function ReportScreen({ navigation }) {
       // Simulate API call with timeout
       await new Promise(resolve => setTimeout(resolve, 1500));
       
+      // Try to get location if not already available
+      if (!location && locationPermission === "granted") {
+        await getLocation();
+      }
+      
       // Construct report data
       const reportData = {
         anonymous,
@@ -131,7 +187,7 @@ export default function ReportScreen({ navigation }) {
           onPress: () => {
             // Reset form and navigate back
             resetForm();
-            navigation.goBack();
+            router.back();
           }
         }]
       );
@@ -201,17 +257,6 @@ export default function ReportScreen({ navigation }) {
     setLocationLoading(true);
     
     try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Location permission is needed to attach your current location to the report.",
-          [{ text: "OK" }]
-        );
-        setLocationLoading(false);
-        return;
-      }
-      
       let currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High
       });
@@ -239,9 +284,7 @@ export default function ReportScreen({ navigation }) {
       }
       
       setLocation(currentLocation.coords);
-      Alert.alert("Success", "Location added to your report");
     } catch (error) {
-      Alert.alert("Error", "Failed to get location. Please try again.");
       console.error("Location error:", error);
     } finally {
       setLocationLoading(false);
@@ -253,10 +296,9 @@ export default function ReportScreen({ navigation }) {
     setImage(null);
   };
 
-  // Remove attached location
-  const removeLocation = () => {
-    setLocation(null);
-    setLocationAddress("");
+  // Handle back button press
+  const handleGoBack = () => {
+    router.back();
   };
 
   // Render input field with error handling
@@ -276,6 +318,15 @@ export default function ReportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+          <Ionicons name="arrow-back" size={24} color="#0A356D" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Report an Incident</Text>
+        <View style={styles.headerRight} />
+      </View>
+
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
@@ -284,8 +335,6 @@ export default function ReportScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <Text style={styles.title}>Report an Incident</Text>
-          
           {/* Anonymous toggle */}
           <View style={styles.card}>
             <View style={styles.switchContainer}>
@@ -357,21 +406,36 @@ export default function ReportScreen({ navigation }) {
                 <Ionicons name="images" size={24} color="#fff" />
                 <Text style={styles.buttonText}>Gallery</Text>
               </TouchableOpacity>
+            </View>
+            
+            {/* Location Access Message */}
+            <View style={styles.locationInfoContainer}>
+              <View style={styles.locationInfoContent}>
+                <Ionicons name="location" size={24} color="#003366" />
+                <View style={styles.locationInfoTextContainer}>
+                  <Text style={styles.locationInfoTitle}>Location Services</Text>
+                  <Text style={styles.locationInfoText}>
+                    Your current location will be included with this report for emergency response purposes.
+                  </Text>
+                </View>
+              </View>
               
-              <TouchableOpacity 
-                style={styles.attachButton} 
-                onPress={getLocation}
-                disabled={locationLoading}
-              >
-                {locationLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="location" size={24} color="#fff" />
-                    <Text style={styles.buttonText}>Location</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {locationPermission !== "granted" && (
+                <TouchableOpacity 
+                  style={styles.locationPermissionButton} 
+                  onPress={checkAndRequestLocationPermission}
+                >
+                  <Text style={styles.locationPermissionText}>Grant Access</Text>
+                </TouchableOpacity>
+              )}
+
+              {locationLoading && (
+                <ActivityIndicator 
+                  color="#003366" 
+                  size="small" 
+                  style={{ marginTop: 8 }}
+                />
+              )}
             </View>
             
             {/* Image preview */}
@@ -401,12 +465,6 @@ export default function ReportScreen({ navigation }) {
                     ) : null}
                   </View>
                 </View>
-                <TouchableOpacity 
-                  style={styles.removeLocationButton}
-                  onPress={removeLocation}
-                >
-                  <Ionicons name="close-circle" size={24} color="#ff3b30" />
-                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -436,6 +494,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f0f2f5"
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EFEFEF",
+    backgroundColor: "#FFF"
+  },
+  backButton: {
+    padding: 5,
+    borderRadius: 20,
+    backgroundColor: "#f0f0f0",
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#003366"
+  },
+  headerRight: {
+    width: 40, // Same width as the back button
   },
   flex: {
     flex: 1
@@ -516,7 +601,7 @@ const styles = StyleSheet.create({
   },
   buttonGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around", // Changed from space-between
     marginBottom: 16
   },
   attachButton: {
@@ -525,7 +610,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    width: "30%",
+    width: "45%", // Changed from 30% to make buttons wider with only two
     flexDirection: "column"
   },
   buttonText: {
@@ -533,6 +618,46 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 4,
     fontSize: 14
+  },
+  locationInfoContainer: {
+    backgroundColor: "#f0f7ff",
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#d0e1f9",
+    marginBottom: 16,
+  },
+  locationInfoContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  locationInfoTextContainer: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  locationInfoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#003366",
+    marginBottom: 4,
+  },
+  locationInfoText: {
+    fontSize: 14,
+    color: "#555",
+    lineHeight: 20,
+  },
+  locationPermissionButton: {
+    backgroundColor: "#003366",
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: "flex-end",
+    marginTop: 10,
+  },
+  locationPermissionText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
   },
   attachmentPreview: {
     position: "relative",
@@ -581,9 +706,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginTop: 2
-  },
-  removeLocationButton: {
-    marginLeft: 8
   },
   submitButton: {
     backgroundColor: "#003366",

@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function SignupScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [matricNo, setMatricNo] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -22,10 +27,19 @@ export default function SignupScreen() {
     }
   };
 
+  const validatePasswordMatch = (text) => {
+    setConfirmPassword(text);
+    if (password && text && password !== text) {
+      setPasswordError("Passwords do not match");
+    } else {
+      setPasswordError("");
+    }
+  };
+
   const handleSignup = () => {
     // Check if all fields are filled
-    if (!name || !email || !password || !phone || !matricNo) {
-      Alert.alert("Error", "Please fill all fields");
+    if (!name || !email || !password || !matricNo) {
+      Alert.alert("Error", "Please fill all required fields");
       return;
     }
 
@@ -35,8 +49,22 @@ export default function SignupScreen() {
       return;
     }
 
+    // Check if passwords match
+    if (password !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+
     // If all validations pass, navigate to login screen
     router.replace("/login");
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   return (
@@ -73,24 +101,47 @@ export default function SignupScreen() {
         
         <TextInput
           style={styles.input}
-          placeholder="Phone Number"
-          placeholderTextColor="#555"
-          keyboardType="phone-pad"
-          onChangeText={setPhone}
-        />
-        <TextInput
-          style={styles.input}
           placeholder="Matric Number"
           placeholderTextColor="#555"
           onChangeText={setMatricNo}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#555"
-          secureTextEntry
-          onChangeText={setPassword}
-        />
+        
+        {/* Password field with eye icon */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            placeholderTextColor="#555"
+            secureTextEntry={!showPassword}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity style={styles.eyeIcon} onPress={togglePasswordVisibility}>
+            <Ionicons name={showPassword ? "eye-off" : "eye"} size={24} color="#555" />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Confirm password field - appears when user starts typing a password */}
+        {password.length > 0 && (
+          <>
+            <View style={[
+              styles.passwordContainer, 
+              passwordError ? styles.passwordContainerError : null
+            ]}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Confirm Password"
+                placeholderTextColor="#555"
+                secureTextEntry={!showConfirmPassword}
+                onChangeText={validatePasswordMatch}
+                value={confirmPassword}
+              />
+              <TouchableOpacity style={styles.eyeIcon} onPress={toggleConfirmPasswordVisibility}>
+                <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={24} color="#555" />
+              </TouchableOpacity>
+            </View>
+            {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+          </>
+        )}
 
         {/* Signup Button */}
         <TouchableOpacity 
@@ -202,6 +253,34 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: "#F7F7F7",
     fontSize: 16,
+  },
+  passwordContainer: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: "#F7F7F7",
+    marginBottom: 15,
+    height: 55,
+  },
+  passwordContainerError: {
+    borderColor: "#ff3b30",
+    borderWidth: 1,
+  },
+  passwordInput: {
+    flex: 1,
+    height: 55,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    backgroundColor: "transparent",
+  },
+  eyeIcon: {
+    paddingHorizontal: 15,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
   inputError: {
     borderColor: "#ff3b30",

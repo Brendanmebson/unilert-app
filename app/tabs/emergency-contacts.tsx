@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -26,6 +27,7 @@ const initialContacts = [
 
 const EmergencyContactsScreen = () => {
   const navigation = useNavigation();
+  const router = useRouter();
   const [contacts, setContacts] = useState(initialContacts);
   const [chatVisible, setChatVisible] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -149,6 +151,13 @@ const EmergencyContactsScreen = () => {
     }
   };
 
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  };
+
   const generateAutoResponse = (message, contact) => {
     const lowerMessage = message.toLowerCase();
     
@@ -164,28 +173,29 @@ const EmergencyContactsScreen = () => {
     
     if (isGreeting) {
       // First provide a friendly greeting
-      let greetingResponse = `Hello, this is ${contact.name}. How can we assist you today?`;
+      const timeGreeting = getTimeBasedGreeting();
+      let greetingResponse = `${timeGreeting}! This is ${contact.name}. How can I assist you today?`;
       
       // Then add emergency-specific information based on contact category
       if (contact.category === "Security") {
         return {
           text: `${greetingResponse} If you're reporting a security incident, please provide your location and details about the situation.`,
           links: [
-            { text: "Report Incident", screen: "ReportIncident" }
+            { text: "Report Incident", screen: "/tabs/report" }
           ]
         };
       } else if (contact.category === "Health") {
         return {
           text: `${greetingResponse} For medical emergencies, please share your location and briefly describe the medical situation.`,
           links: [
-            { text: "Medical Services", screen: "EmergencyServices" }
+            { text: "Medical Services", screen: "/tabs/emergency" }
           ]
         };
       } else if (contact.name.includes("Fire")) {
         return {
           text: `${greetingResponse} For fire emergencies, please provide your exact location and evacuate the area if possible.`,
           links: [
-            { text: "Fire Services", screen: "EmergencyServices" }
+            { text: "Fire Services", screen: "/tabs/emergency" }
           ]
         };
       }
@@ -194,8 +204,8 @@ const EmergencyContactsScreen = () => {
       return {
         text: greetingResponse,
         links: [
-          { text: "Emergency Services", screen: "EmergencyServices" },
-          { text: "Report Incident", screen: "ReportIncident" }
+          { text: "Emergency Services", screen: "/tabs/emergency" },
+          { text: "Report Incident", screen: "/tabs/report" }
         ]
       };
     }
@@ -205,7 +215,7 @@ const EmergencyContactsScreen = () => {
       return {
         text: "If you need to report an incident, you can use our Report Incident page. Would you like to go there now?",
         links: [
-          { text: "Report Incident", screen: "ReportIncident" }
+          { text: "Report Incident", screen: "/tabs/report" }
         ]
       };
     }
@@ -214,7 +224,7 @@ const EmergencyContactsScreen = () => {
       return {
         text: "You can access our Helpline page for more assistance options.",
         links: [
-          { text: "Helpline Page", screen: "Helpline" }
+          { text: "Helpline Page", screen: "/tabs/helplines" }
         ]
       };
     }
@@ -224,7 +234,7 @@ const EmergencyContactsScreen = () => {
       return {
         text: "I'm sorry to hear about this security issue. Please provide more details about when and where this happened. You can also file a formal report through our app.",
         links: [
-          { text: "Report Incident", screen: "ReportIncident" }
+          { text: "Report Incident", screen: "/tabs/report" }
         ]
       };
     }
@@ -258,8 +268,8 @@ const EmergencyContactsScreen = () => {
       return {
         text: "This sounds like an emergency situation. Please provide your exact location and details about what's happening so we can send appropriate help immediately.",
         links: [
-          { text: "Emergency Services", screen: "EmergencyServices" },
-          { text: "Share Location", screen: "LocationSharing" }
+          { text: "Emergency Services", screen: "/tabs/emergency" },
+          { text: "Share Location", screen: "/tabs/dashboard" }
         ]
       };
     }
@@ -276,8 +286,8 @@ const EmergencyContactsScreen = () => {
     return {
       text: "Thank you for your message. To better assist you, could you provide more details about your situation?",
       links: [
-        { text: "Helpline", screen: "Helpline" },
-        { text: "Report Incident", screen: "ReportIncident" }
+        { text: "Helpline", screen: "/tabs/helplines" },
+        { text: "Report Incident", screen: "/tabs/report" }
       ]
     };
   };
@@ -400,9 +410,32 @@ const EmergencyContactsScreen = () => {
     }
   };
   
-  const navigateToScreen = (screenName) => {
+  const navigateToScreen = (screenPath) => {
     setChatVisible(false);
-    navigation.navigate(screenName);
+    
+    // Use router instead of navigation for Expo Router paths
+    if (screenPath.startsWith('/')) {
+      router.push(screenPath);
+    } else {
+      // For compatibility with old screen names
+      switch(screenPath) {
+        case "ReportIncident":
+          router.push("/tabs/report");
+          break;
+        case "EmergencyServices":
+          router.push("/tabs/emergency");
+          break;
+        case "Helpline":
+          router.push("/tabs/helplines");
+          break;
+        case "LocationSharing":
+          router.push("/tabs/dashboard");
+          break;
+        default:
+          console.log("Unknown screen:", screenPath);
+          router.push("/tabs/dashboard");
+      }
+    }
   };
   
   // Function to render the message with links
@@ -532,6 +565,20 @@ const EmergencyContactsScreen = () => {
     // Save to AsyncStorage
     try {
       await AsyncStorage.setItem("contacts", JSON.stringify(updatedContacts));
+      
+      // Create default welcome message for the new contact
+      const initialMessages = [{
+        id: Date.now().toString(),
+        sender: newContact.name.trim(),
+        text: `Hello! This is ${newContact.name.trim()}. How can I assist you today?`,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        read: true,
+        replyTo: null,
+      }];
+      
+      // Save initial message to storage
+      await AsyncStorage.setItem(`chat_${newContactObj.id}`, JSON.stringify(initialMessages));
+      
       // Reset form
       setNewContact({
         name: "",
@@ -800,26 +847,28 @@ const EmergencyContactsScreen = () => {
 
           <View style={styles.chatInputContainer}>
             {renderReplyPreview()}
-            <TextInput
-              style={[styles.input, { height: Math.max(40, Math.min(inputHeight, 100)) }]}
-              placeholder="Type a message..."
-              value={newMessage}
-              onChangeText={setNewMessage}
-              multiline
-              onContentSizeChange={(e) => {
-                setInputHeight(e.nativeEvent.contentSize.height);
-              }}
-            />
-            <TouchableOpacity 
-              style={[
-                styles.sendButton,
-                !newMessage.trim() && styles.sendButtonDisabled
-              ]} 
-              onPress={sendMessage}
-              disabled={!newMessage.trim()}
-            >
-              <Ionicons name="send" size={20} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={[styles.input, { height: Math.max(40, Math.min(inputHeight, 100)) }]}
+                placeholder="Type a message..."
+                value={newMessage}
+                onChangeText={setNewMessage}
+                multiline
+                onContentSizeChange={(e) => {
+                  setInputHeight(e.nativeEvent.contentSize.height);
+                }}
+              />
+             <TouchableOpacity 
+                style={[
+                  styles.sendButton,
+                  !newMessage.trim() && styles.sendButtonDisabled
+                ]} 
+                onPress={sendMessage}
+                disabled={!newMessage.trim()}
+              >
+                <Ionicons name="send" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1073,6 +1122,11 @@ const EmergencyContactsScreen = () => {
      borderTopWidth: 1,
      borderTopColor: "#e0e0e0"
    },
+   inputWrapper: {
+     flexDirection: "row",
+     alignItems: "flex-end", // Align to bottom when input grows
+     marginTop: 5
+   },
    input: { 
      flex: 1, 
      paddingHorizontal: 15,
@@ -1086,14 +1140,13 @@ const EmergencyContactsScreen = () => {
      maxHeight: 100,
    },
    sendButton: { 
-     padding: 10, 
      backgroundColor: "#007AFF", 
      borderRadius: 50,
      width: 40,
      height: 40,
      justifyContent: "center",
      alignItems: "center",
-     alignSelf: "flex-end"
+     marginBottom: 2, // Slight adjustment to align with input
    },
    sendButtonDisabled: {
      backgroundColor: "#b3d9ff",

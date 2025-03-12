@@ -34,16 +34,17 @@ export default function ProfileScreen() {
   const [showHelp, setShowHelp] = useState(false);
   
   // User profile data state
-  const [profileData, setProfileData] = useState({
-    name: "Emmanuel James",
-    matricNo: "21/2345",
-    phoneNo: "08023463176",
-    course: "S/E",
-    department: "S/E",
-    email: "emmanuel@student.babcock.edu.ng",
-    level: "300 Level",
-    profileImage: "https://via.placeholder.com/100"
-  });
+const [profileData, setProfileData] = useState({
+  name: "Emmanuel James",
+  matricNo: "21/2345",
+  phoneNo: "", // Set to empty string
+  course: "Software Engineering",
+  department: "Software Engineering",
+  email: "emmanuel@student.babcock.edu.ng",
+  level: "300 Level",
+  Hall: "", // Set to empty string
+  profileImage: "https://via.placeholder.com/100"
+});
   
   // Temporary state for editing
   const [tempData, setTempData] = useState({...profileData});
@@ -115,9 +116,8 @@ export default function ProfileScreen() {
         {
           text: "Logout",
           onPress: () => {
-            // Clear saved credentials in a real app
-            // AsyncStorage.removeItem('userToken');
-            navigation.replace("Login");
+            // Navigate to the login screen
+            navigation.replace("login");
           },
           style: "destructive"
         }
@@ -299,13 +299,13 @@ export default function ProfileScreen() {
           </View>
 
           <InfoField 
-            label="NAME:" 
-            value={profileData.name}
-            tempValue={tempData.name}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('name', value)}
-            editable={true}
-          />
+  label="FULL NAME:" 
+  value={profileData.name}
+  tempValue={tempData.name}
+  editing={editing}
+  onChangeText={(value) => handleTextChange('name', value)}
+  editable={true}
+/>
 
           <InfoField 
             label="Matric No:" 
@@ -317,15 +317,15 @@ export default function ProfileScreen() {
             helperText="Matric number cannot be changed"
           />
 
-          <InfoField 
-            label="Phone No:" 
-            value={profileData.phoneNo}
-            tempValue={tempData.phoneNo}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('phoneNo', value)}
-            editable={true}
-            keyboardType="phone-pad"
-          />
+<InfoField 
+  label="Phone No:" 
+  value={profileData.phoneNo}
+  tempValue={tempData.phoneNo}
+  editing={editing}
+  onChangeText={(value) => handleTextChange('phoneNo', value)}
+  editable={true}  // This allows editing
+  keyboardType="phone-pad"
+/>
           
           <InfoField 
             label="Email:" 
@@ -366,6 +366,15 @@ export default function ProfileScreen() {
             editable={false}
             helperText="Level is updated by administration"
           />
+
+<InfoField 
+  label="Hall of Residence:" 
+  value={profileData.Hall}
+  tempValue={tempData.Hall}
+  editing={editing}
+  onChangeText={(value) => handleTextChange('Hall', value)}
+  editable={true}  // This allows editing
+/>
         </View>
         
         <View style={styles.sectionContainer}>
