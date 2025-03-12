@@ -10,20 +10,20 @@ export default function AllAlerts() {
       id: 1,
       message: "Emergency drill scheduled for tomorrow at 10 AM.",
       time: "2 hours ago",
-      date: "March 2, 2025",
-      urgent: false
+      date: "March 24, 2025",
+      urgent: true
     },
     {
       id: 2,
       message: "Lost item reported: A black backpack found near the cafeteria. Claim at the security office.",
-      time: "Now",
-      date: "March 3, 2025",
+      time: "",
+      date: "March 17, 2025",
       urgent: false
     },
     {
       id: 3,
       message: "Campus gates 2 and 3 will be closed for maintenance from 11 PM to 5 AM tonight.",
-      time: "Yesterday",
+      time: "",
       date: "March 2, 2025",
       urgent: false
     },
@@ -31,28 +31,28 @@ export default function AllAlerts() {
       id: 4,
       message: "URGENT: Temporary water outage in Hostels A and B. Maintenance team working on it. Expected resolution by 3 PM.",
       time: "45 minutes ago",
-      date: "March 3, 2025",
+      date: "March 25, 2025",
       urgent: true
     },
     {
       id: 5,
       message: "Library hours extended until midnight during exam week (March 10-17).",
       time: "3 days ago",
-      date: "February 28, 2025",
+      date: "March 22, 2025",
       urgent: false
     },
     {
       id: 6,
       message: "Friendly reminder: Make sure to follow COVID safety protocols in all campus buildings.",
       time: "1 week ago",
-      date: "February 24, 2025",
+      date: "March 17, 2025",
       urgent: false
     },
     {
       id: 7,
       message: "Career fair scheduled for next Tuesday in the Main Hall from 9 AM to 3 PM.",
       time: "5 days ago",
-      date: "February 26, 2025",
+      date: "March 20, 2025",
       urgent: false
     }
   ]);

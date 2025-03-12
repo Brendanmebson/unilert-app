@@ -7,7 +7,7 @@ const initialNotifications = [
   { id: "1", type: "Security", title: "BU Fire Service", message: "If you notice anything smells like its burning, report to the hall admin.", time: "now", read: false },
   { id: "2", type: "App Update", title: "Version 1.0.5 Released", message: "Bug fixes and performance improvements.", time: "10m ago", read: false },
   { id: "3", type: "New Feature", title: "Emergency Alert", message: "Hold the SOS button for 3 seconds to trigger an emergency.", time: "1h ago", read: false },
-  { id: "4", type: "Upcoming", title: "Live Chat Support", message: "We're adding 24/7 live chat for emergencies.", time: "Tomorrow", read: false },
+  { id: "4", type: "Upcoming", title: "Live Chat Support", message: "We're adding 24/7 live chat for emergencies.", time: "Today", read: false },
 ];
 
 const NotificationScreen = () => {

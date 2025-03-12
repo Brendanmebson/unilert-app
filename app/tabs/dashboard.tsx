@@ -17,7 +17,7 @@ export default function Dashboard() {
       id: 1,
       message: "Emergency drill scheduled for tomorrow at 10 AM.",
       time: "2 hours ago",
-      urgent: false
+      urgent: true
     },
     {
       id: 2,
