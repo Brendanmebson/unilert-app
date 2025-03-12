@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  FlatList, 
+  StyleSheet, 
   Alert,
   Modal,
   ScrollView,
@@ -130,15 +130,18 @@ const EmergencyContactsScreen = () => {
       
       // Add welcome message if there are no messages yet
       if (initialMessages.length === 0) {
-        initialMessages = [{
+        const welcomeMessage = {
           id: Date.now().toString(),
           sender: contact.name,
-          text: `Hello! How can we assist you at ${contact.name}?`,
+          text: contact.isUserAdded 
+            ? `Hey, it's ${contact.name}.` 
+            : `Hello! How can we assist you at ${contact.name}?`,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           read: true,
           replyTo: null,
-        }];
+        };
         
+        initialMessages = [welcomeMessage];
         await AsyncStorage.setItem(`chat_${contact.id}`, JSON.stringify(initialMessages));
       }
       
@@ -315,30 +318,33 @@ const EmergencyContactsScreen = () => {
       try {
         await AsyncStorage.setItem(`chat_${currentContact.id}`, JSON.stringify(updatedMessages));
         
-        // Show typing indicator
-        setTypingIndicator(true);
-        
-        // Generate auto-response after delay
-        setTimeout(async () => {
-          setTypingIndicator(false);
+        // Only generate auto-response for default contacts (not user-added)
+        if (!currentContact.isUserAdded) {
+          // Show typing indicator
+          setTypingIndicator(true);
           
-          // Generate response with potential links
-          const responseData = generateAutoResponse(newMessage, currentContact);
-          
-          const responseMessage = {
-            id: (Date.now() + 1).toString(),
-            sender: currentContact.name,
-            text: responseData.text,
-            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            read: true,
-            replyTo: userMessage.id,
-            links: responseData.links || [],
-          };
+          // Generate auto-response after delay
+          setTimeout(async () => {
+            setTypingIndicator(false);
+            
+            // Generate response with potential links
+            const responseData = generateAutoResponse(newMessage, currentContact);
+            
+            const responseMessage = {
+              id: (Date.now() + 1).toString(),
+              sender: currentContact.name,
+              text: responseData.text,
+              time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              read: true,
+              replyTo: userMessage.id,
+              links: responseData.links || [],
+            };
 
-          const messagesWithResponse = [...updatedMessages, responseMessage];
-          setChatMessages(messagesWithResponse);
-          await AsyncStorage.setItem(`chat_${currentContact.id}`, JSON.stringify(messagesWithResponse));
-        }, 1500 + Math.random() * 1000); // Random delay between 1.5-2.5 seconds for more natural feel
+            const messagesWithResponse = [...updatedMessages, responseMessage];
+            setChatMessages(messagesWithResponse);
+            await AsyncStorage.setItem(`chat_${currentContact.id}`, JSON.stringify(messagesWithResponse));
+          }, 1500 + Math.random() * 1000); // Random delay between 1.5-2.5 seconds for more natural feel
+        }
       } catch (error) {
         console.error("Error saving chat message:", error);
         Alert.alert("Error", "Failed to save your message");
@@ -555,7 +561,8 @@ const EmergencyContactsScreen = () => {
       number: newContact.number.trim(),
       category: newContact.category.trim(),
       priority: newContact.priority,
-      online: newContact.online
+      online: newContact.online,
+      isUserAdded: true // This flag indicates it's a user-added contact
     };
 
     // Update contacts state
@@ -566,11 +573,11 @@ const EmergencyContactsScreen = () => {
     try {
       await AsyncStorage.setItem("contacts", JSON.stringify(updatedContacts));
       
-      // Create default welcome message for the new contact
+      // Create default welcome message for the new contact - simple and with no follow-up responses
       const initialMessages = [{
         id: Date.now().toString(),
         sender: newContact.name.trim(),
-        text: `Hello! This is ${newContact.name.trim()}. How can I assist you today?`,
+        text: `Hey, it's ${newContact.name.trim()}.`,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         read: true,
         replyTo: null,
@@ -1124,7 +1131,7 @@ const EmergencyContactsScreen = () => {
    },
    inputWrapper: {
      flexDirection: "row",
-     alignItems: "flex-end", // Align to bottom when input grows
+     alignItems: "flex-end",
      marginTop: 5
    },
    input: { 
@@ -1146,7 +1153,7 @@ const EmergencyContactsScreen = () => {
      height: 40,
      justifyContent: "center",
      alignItems: "center",
-     marginBottom: 2, // Slight adjustment to align with input
+     marginBottom: 2,
    },
    sendButtonDisabled: {
      backgroundColor: "#b3d9ff",

@@ -202,7 +202,14 @@ export default function EmergencyScreen() {
   };
 
   const callEmergency = () => {
-    Linking.openURL('tel:911');
+    Alert.alert(
+      "Call Campus Emergency",
+      "Are you sure you want to call the campus emergency helpline?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Call", onPress: () => Linking.openURL('tel:+2348023456789') }
+      ]
+    );
   };
 
   const toggleEmergencyContacts = () => {
@@ -272,7 +279,7 @@ export default function EmergencyScreen() {
       <View style={styles.quickContactsContainer}>
         <TouchableOpacity style={styles.quickContactButton} onPress={callEmergency}>
           <Ionicons name="call" size={24} color="white" />
-          <Text style={styles.quickContactText}>911</Text>
+          <Text style={styles.quickContactText}>Campus Emergency</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.quickContactButton} onPress={toggleEmergencyContacts}>

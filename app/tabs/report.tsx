@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,8 @@ export default function ReportScreen() {
   const [course, setCourse] = useState("");
   const [department, setDepartment] = useState("");
   const [incident, setIncident] = useState("");
+  const [incidentType, setIncidentType] = useState("");
+  const [showIncidentTypeError, setShowIncidentTypeError] = useState(false);
   const [image, setImage] = useState(null);
   const [location, setLocation] = useState(null);
   const [anonymous, setAnonymous] = useState(false);
@@ -39,6 +41,20 @@ export default function ReportScreen() {
   const [formErrors, setFormErrors] = useState({});
   const [locationAddress, setLocationAddress] = useState("");
   const [locationPermission, setLocationPermission] = useState("unknown");
+
+  // Incident types
+  const incidentTypes = [
+    "Fire",
+    "Medical Emergency",
+    "Theft",
+    "Suspicious Activity",
+    "Vandalism",
+    "Harassment",
+    "Utility Issue",
+    "Flooding",
+    "Property Damage",
+    "Other"
+  ];
 
   // Check for required permissions on component mount
   useEffect(() => {
@@ -106,6 +122,13 @@ export default function ReportScreen() {
     let errors = {};
     let isValid = true;
 
+    if (!incidentType) {
+      setShowIncidentTypeError(true);
+      isValid = false;
+    } else {
+      setShowIncidentTypeError(false);
+    }
+
     if (!incident.trim()) {
       errors.incident = "Incident details are required";
       isValid = false;
@@ -156,6 +179,7 @@ export default function ReportScreen() {
       // Construct report data
       const reportData = {
         anonymous,
+        incidentType,
         incident,
         timestamp: new Date().toISOString(),
         hasImage: !!image,
@@ -207,11 +231,13 @@ export default function ReportScreen() {
     setCourse("");
     setDepartment("");
     setIncident("");
+    setIncidentType("");
     setImage(null);
     setLocation(null);
     setLocationAddress("");
     setAnonymous(false);
     setFormErrors({});
+    setShowIncidentTypeError(false);
   };
 
   // Pick image from camera
@@ -365,6 +391,35 @@ export default function ReportScreen() {
             </View>
           )}
           
+          {/* Incident Type Selection */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Incident Type</Text>
+            <View style={styles.buttonGrid}>
+              {incidentTypes.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.incidentTypeButton,
+                    incidentType === type && styles.incidentTypeButtonActive
+                  ]}
+                  onPress={() => setIncidentType(type)}
+                >
+                  <Text
+                    style={[
+                      styles.incidentTypeText,
+                      incidentType === type && styles.incidentTypeTextActive
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {showIncidentTypeError && (
+              <Text style={styles.errorText}>Please select an incident type</Text>
+            )}
+          </View>
+          
           {/* Incident details section */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Incident Details</Text>
@@ -374,7 +429,11 @@ export default function ReportScreen() {
                   styles.textArea,
                   formErrors.incident ? styles.inputError : null
                 ]}
-                placeholder="Describe what happened in detail..."
+                placeholder={
+                  incidentType ? 
+                  `Describe the ${incidentType.toLowerCase()} incident in detail...` : 
+                  "First select an incident type above, then describe what happened..."
+                }
                 multiline
                 textAlignVertical="top"
                 value={incident}
@@ -601,8 +660,29 @@ const styles = StyleSheet.create({
   },
   buttonGrid: {
     flexDirection: "row",
-    justifyContent: "space-around", // Changed from space-between
-    marginBottom: 16
+    flexWrap: "wrap",
+    marginVertical: 10
+  },
+  incidentTypeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#d1d1d1",
+    marginRight: 8,
+    marginBottom: 8
+  },
+  incidentTypeButtonActive: {
+    backgroundColor: "#003366",
+    borderColor: "#003366"
+  },
+  incidentTypeText: {
+    fontSize: 14,
+    color: "#333"
+  },
+  incidentTypeTextActive: {
+    color: "white",
+    fontWeight: "500"
   },
   attachButton: {
     backgroundColor: "#003366",
@@ -611,7 +691,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     width: "45%", // Changed from 30% to make buttons wider with only two
-    flexDirection: "column"
+    flexDirection: "column",
+    marginRight: 8,
+    marginBottom: 8
   },
   buttonText: {
     color: "#fff",

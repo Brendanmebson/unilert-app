@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { 
   View, 
   Text, 
@@ -8,21 +8,18 @@ import {
   TouchableOpacity, 
   Alert,
   StatusBar,
-  Platform,
-  useColorScheme
+  Platform
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Assuming Expo is used
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useTheme } from "../../contexts/ThemeContext";
 
 export default function SettingsScreen() {
-  // System theme detection
-  const deviceTheme = useColorScheme();
+  const router = useRouter();
+  const { theme, isDark, setDarkMode } = useTheme();
   
-  // State management with more organized structure and light mode by default
+  // State management with more organized structure
   const [settings, setSettings] = useState({
-    appearance: {
-      darkMode: false, // Light mode by default
-      widgetHomeScreen: false,
-    },
     notifications: {
       app: true,
       email: true,
@@ -52,12 +49,6 @@ export default function SettingsScreen() {
     }));
   };
   
-  // Removed the auto-detection of system theme to ensure light mode is always the default
-  // We could still keep this function, but make it opt-in with a "Use System Theme" setting
-  
-  // Apply theme based on settings
-  const theme = settings.appearance.darkMode ? darkTheme : lightTheme;
-  
   // Handler for options that need confirmation
   const handleSensitiveSetting = (category, setting, currentValue, message) => {
     Alert.alert(
@@ -75,8 +66,8 @@ export default function SettingsScreen() {
 
   // Handler for navigation actions
   const navigateTo = (screen) => {
-    // Navigation logic would go here
-    Alert.alert("Navigation", `Navigating to ${screen} screen`);
+    // Navigation logic
+    router.push(screen);
   };
   
   // Toggle setting with optional confirmation
@@ -87,25 +78,41 @@ export default function SettingsScreen() {
       updateSetting(category, setting, !currentValue);
     }
   };
+  
+  // Handle logout with confirmation
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to logout from Unilert?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Logout", 
+          onPress: () => router.replace("../login"),
+          style: "destructive"
+        }
+      ]
+    );
+  };
 
   // Render a section header
   const renderSectionHeader = (title, icon) => (
     <View style={styles.sectionHeader}>
-      {icon && <Ionicons name={icon} size={22} color={theme.accentColor} style={styles.sectionIcon} />}
-      <Text style={[styles.sectionTitle, {color: theme.textColor}]}>{title}</Text>
+      {icon && <Ionicons name={icon} size={22} color={theme.accent} style={styles.sectionIcon} />}
+      <Text style={[styles.sectionTitle, {color: theme.text}]}>{title}</Text>
     </View>
   );
 
   // Render a setting item with switch
   const renderSettingSwitch = (title, category, setting, needsConfirmation = false, confirmMessage = "", disabled = false, description = null) => (
     <TouchableOpacity 
-      style={[styles.settingItem, {backgroundColor: theme.cardBackground}]}
+      style={[styles.settingItem, {backgroundColor: theme.card}]}
       disabled={disabled}
       onPress={() => disabled ? null : toggleSetting(category, setting, settings[category][setting], needsConfirmation, confirmMessage)}
     >
       <View style={styles.settingTextContainer}>
-        <Text style={[styles.settingText, {color: theme.textColor}]}>{title}</Text>
-        {description && <Text style={[styles.settingDescription, {color: theme.secondaryTextColor}]}>{description}</Text>}
+        <Text style={[styles.settingText, {color: theme.text}]}>{title}</Text>
+        {description && <Text style={[styles.settingDescription, {color: theme.secondaryText}]}>{description}</Text>}
       </View>
       <Switch 
         value={settings[category][setting]} 
@@ -121,62 +128,78 @@ export default function SettingsScreen() {
   // Render a setting item with navigation
   const renderSettingNavigation = (title, destination, icon = "chevron-forward", description = null) => (
     <TouchableOpacity 
-      style={[styles.settingItem, {backgroundColor: theme.cardBackground}]}
+      style={[styles.settingItem, {backgroundColor: theme.card}]}
       onPress={() => navigateTo(destination)}
     >
       <View style={styles.settingTextContainer}>
-        <Text style={[styles.settingText, {color: theme.textColor}]}>{title}</Text>
-        {description && <Text style={[styles.settingDescription, {color: theme.secondaryTextColor}]}>{description}</Text>}
+        <Text style={[styles.settingText, {color: theme.text}]}>{title}</Text>
+        {description && <Text style={[styles.settingDescription, {color: theme.secondaryText}]}>{description}</Text>}
       </View>
-      <Ionicons name={icon} size={20} color={theme.secondaryTextColor} />
+      <Ionicons name={icon} size={20} color={theme.secondaryText} />
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.mainContainer, {backgroundColor: theme.backgroundColor}]}>
-      <StatusBar barStyle={settings.appearance.darkMode ? "light-content" : "dark-content"} />
+    <View style={[styles.mainContainer, {backgroundColor: theme.background}]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.background} />
+      
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Settings</Text>
+        <View style={{ width: 24 }} />
+      </View>
       
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         {/* Profile Section */}
         <TouchableOpacity 
-          style={[styles.profileSection, {backgroundColor: theme.cardBackground}]}
-          onPress={() => navigateTo("Profile")}
+          style={[styles.profileSection, {backgroundColor: theme.card}]}
+          onPress={() => navigateTo("/tabs/profile")}
         >
-          <View style={styles.profileImagePlaceholder}>
+          <View style={[styles.profileImagePlaceholder, { backgroundColor: isDark ? "#4dabf7" : "#0A356D" }]}>
             <Text style={styles.profileInitials}>EJ</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, {color: theme.textColor}]}>Emmanuel James</Text>
-            <Text style={[styles.profileEmail, {color: theme.secondaryTextColor}]}>emmanuel@student.babcock.edu.ng</Text>
+            <Text style={[styles.profileName, {color: theme.text}]}>Emmanuel James</Text>
+            <Text style={[styles.profileEmail, {color: theme.secondaryText}]}>emmanuel@student.babcock.edu.ng</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.secondaryTextColor} />
+          <Ionicons name="chevron-forward" size={20} color={theme.secondaryText} />
         </TouchableOpacity>
         
         {/* Preferences Settings */}
         {renderSectionHeader("Appearance", "color-palette-outline")}
-        {renderSettingSwitch("Dark Mode", "appearance", "darkMode")}
-        {renderSettingSwitch("Add Widget to Home Screen", "appearance", "widgetHomeScreen")}
+        <TouchableOpacity 
+          style={[styles.settingItem, {backgroundColor: theme.card}]}
+          onPress={() => setDarkMode(!isDark)}
+        >
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, {color: theme.text}]}>Dark Mode</Text>
+            <Text style={[styles.settingDescription, {color: theme.secondaryText}]}>
+              {isDark ? "Switch to light theme" : "Switch to dark theme"}
+            </Text>
+          </View>
+          <Switch 
+            value={isDark} 
+            onValueChange={(value) => setDarkMode(value)}
+            trackColor={{ false: theme.switchTrackOff, true: theme.switchTrackOn }}
+            thumbColor={isDark ? theme.switchThumbOn : theme.switchThumbOff}
+            ios_backgroundColor={theme.switchTrackOff}
+          />
+        </TouchableOpacity>
         
         {/* Notification Settings */}
         {renderSectionHeader("Notifications", "notifications-outline")}
         {renderSettingSwitch("App Notifications", "notifications", "app")}
         {renderSettingSwitch("Email Notifications", "notifications", "email")}
         {renderSettingSwitch("Marketing Emails", "notifications", "marketing")}
-        {renderSettingNavigation("Notification Preferences", "NotificationPreferences", "options-outline", "Configure which types of notifications you receive")}
-        
-        {/* Account Settings */}
-        {renderSectionHeader("Account", "person-outline")}
-        {renderSettingNavigation("Change Password", "ChangePassword")}
-        {renderSettingNavigation("Manage Subscriptions", "Subscriptions")}
-        {renderSettingNavigation("Two-Factor Authentication", "TwoFactorAuth")}
-        {renderSettingNavigation("Linked Accounts", "LinkedAccounts")}
-        {renderSettingNavigation("Language", "LanguageSettings", "language-outline", "English (US)")}
+        {renderSettingNavigation("Notification Preferences", "/tabs/notifications", "options-outline", "Configure which types of notifications you receive")}
         
         {/* Privacy Settings */}
         {renderSectionHeader("Privacy & Security", "shield-checkmark-outline")}
         {renderSettingSwitch("Location Access", "privacy", "locationAccess", true, "Allow this app to access your location?")}
         {renderSettingSwitch("Allow Data Collection", "privacy", "dataCollection", true, "Allow us to collect anonymous usage data to improve the app?")}
-        {renderSettingNavigation("Ad Preferences", "AdPreferences")}
         {renderSettingSwitch(
           "Enable Fingerprint Authentication", 
           "privacy", 
@@ -186,7 +209,7 @@ export default function SettingsScreen() {
           Platform.OS !== 'ios' && Platform.OS !== 'android',
           Platform.OS !== 'ios' && Platform.OS !== 'android' ? "Not available on this device" : null
         )}
-        {renderSettingNavigation("Privacy Policy", "PrivacyPolicy")}
+        {renderSettingNavigation("Privacy Policy", "/privacy-policy")}
         
         {/* Update Settings */}
         {renderSectionHeader("Updates & Data", "refresh-outline")}
@@ -194,37 +217,28 @@ export default function SettingsScreen() {
         {renderSettingSwitch("Update on Wi-Fi Only", "updates", "updateOnWifiOnly", false, "", !settings.updates.autoUpdate)}
         {renderSettingSwitch("Background App Refresh", "updates", "backgroundAppRefresh")}
         {renderSettingSwitch("Use Cellular Data", "updates", "useCellularData", false, "", !settings.updates.backgroundAppRefresh)}
-        {renderSettingNavigation("Check for Updates", "CheckUpdates", "download-outline")}
         
         {/* Additional Info */}
         {renderSectionHeader("About", "information-circle-outline")}
-        <View style={[styles.settingItem, {backgroundColor: theme.cardBackground}]}>
-          <Text style={[styles.settingText, {color: theme.textColor}]}>App Version</Text>
-          <Text style={[styles.versionText, {color: theme.secondaryTextColor}]}>1.0.5 (build 243)</Text>
+        <View style={[styles.settingItem, {backgroundColor: theme.card}]}>
+          <Text style={[styles.settingText, {color: theme.text}]}>App Version</Text>
+          <Text style={[styles.versionText, {color: theme.secondaryText}]}>1.0.5 (build 243)</Text>
         </View>
-        {renderSettingNavigation("Send Feedback", "Feedback", "paper-plane-outline")}
-        {renderSettingNavigation("Help Center", "HelpCenter", "help-circle-outline")}
+        {renderSettingNavigation("Help Center", "/tabs/help", "help-circle-outline")}
         
         {/* Footer Links */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={() => navigateTo("Terms")}>
-            <Text style={[styles.footerText, {color: theme.accentColor}]}>Terms and Conditions</Text>
+          <TouchableOpacity onPress={() => navigateTo("/terms")}>
+            <Text style={[styles.footerText, {color: theme.accent}]}>Terms and Conditions</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigateTo("About")}>
-            <Text style={[styles.footerText, {color: theme.accentColor}]}>About Us</Text>
+          <TouchableOpacity onPress={() => navigateTo("/about")}>
+            <Text style={[styles.footerText, {color: theme.accent}]}>About Us</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.dangerButton, {borderColor: theme.dangerColor}]}
-            onPress={() => Alert.alert(
-              "Logout", 
-              "Are you sure you want to log out?", 
-              [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: () => Alert.alert("Logged Out", "You have been logged out.") }
-              ]
-            )}
+            style={[styles.dangerButton, {borderColor: theme.danger}]}
+            onPress={handleLogout}
           >
-            <Text style={[styles.dangerButtonText, {color: theme.dangerColor}]}>Logout</Text>
+            <Text style={[styles.dangerButtonText, {color: theme.danger}]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -232,40 +246,25 @@ export default function SettingsScreen() {
   );
 }
 
-// Theme configurations
-const lightTheme = {
-  backgroundColor: "#f8f9fa",
-  cardBackground: "#ffffff",
-  textColor: "#333333",
-  secondaryTextColor: "#666666",
-  accentColor: "#007bff",
-  switchTrackOn: "#007bff",
-  switchTrackOff: "#e2e2e2",
-  switchThumbOn: "#ffffff",
-  switchThumbOff: "#f4f3f4",
-  dangerColor: "#dc3545",
-  borderColor: "#e1e4e8",
-  profileGradient: ["#4e54c8", "#8f94fb"],
-};
-
-const darkTheme = {
-  backgroundColor: "#121212",
-  cardBackground: "#1e1e1e",
-  textColor: "#f1f1f1",
-  secondaryTextColor: "#a0a0a0",
-  accentColor: "#4dabf7",
-  switchTrackOn: "#4dabf7",
-  switchTrackOff: "#3a3a3a",
-  switchThumbOn: "#ffffff",
-  switchThumbOff: "#b7b7b7",
-  dangerColor: "#f77",
-  borderColor: "#2c2c2c",
-  profileGradient: ["#2b303b", "#3a3f50"],
-};
-
 const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    padding: 5,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   container: {
     flex: 1,
@@ -334,7 +333,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#4e54c8",
     justifyContent: "center",
     alignItems: "center",
   },

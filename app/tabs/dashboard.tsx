@@ -1,7 +1,19 @@
-import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Image, Dimensions, Alert } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView, 
+  SafeAreaView, 
+  Dimensions, 
+  Alert,
+  StatusBar,
+  Platform 
+} from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../contexts/ThemeContext";
 
 // Get screen dimensions for responsive design
 const { width } = Dimensions.get("window");
@@ -9,6 +21,7 @@ const { width } = Dimensions.get("window");
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
+  const { theme, isDark, toggleTheme } = useTheme();
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const userName = "Emmanuel";
@@ -27,19 +40,95 @@ export default function Dashboard() {
     }
   ]);
 
+  // Safety Tips Carousel
   const safetyTips = [
-    "Stay Aware of Your Surroundings – Avoid distractions like looking at your phone while walking, especially at night. Stay alert and trust your instincts if something feels off.",
-    "Share Your Location – Let friends know where you're going and when you expect to arrive, especially when traveling alone.",
-    "Use Campus Escort Services – Don't hesitate to use campus security escort services when walking late at night."
+    {
+      id: 1,
+      title: "Personal Awareness",
+      tip: "Stay aware of your surroundings – avoid distractions like looking at your phone while walking, especially at night.",
+      icon: "eye-outline"
+    },
+    {
+      id: 2,
+      title: "Location Sharing",
+      tip: "Share your location with friends when traveling to unfamiliar places or when out late at night.",
+      icon: "location-outline"
+    },
+    {
+      id: 3,
+      title: "Campus Escort",
+      tip: "Use campus security escort services when walking late at night. Don't hesitate to call for assistance.",
+      icon: "shield-checkmark-outline"
+    },
+    {
+      id: 4,
+      title: "Emergency Contacts",
+      tip: "Save emergency contacts in your phone and memorize key numbers like campus security (08023456789).",
+      icon: "call-outline"
+    },
+    {
+      id: 5,
+      title: "Room Security",
+      tip: "Always lock your room or apartment door, even when you're inside or stepping out briefly.",
+      icon: "lock-closed-outline"
+    }
   ];
-  const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  
+  // Campus Safety Updates - now as a list
+  const safetyUpdates = [
+    {
+      id: 1,
+      title: "New Security Gates",
+      description: "New security gates have been installed at all campus entrances with 24/7 monitoring.",
+      icon: "shield-outline",
+      date: "March 24, 2025"
+    },
+    {
+      id: 2,
+      title: "Emergency Drills",
+      description: "Monthly emergency drills scheduled to ensure preparedness. Next drill: April 10th.",
+      icon: "fitness-outline",
+      date: "March 22, 2025"
+    },
+    {
+      id: 3,
+      title: "Safety App Update",
+      description: "The Unilert app has been updated with new features. Please update your app to the latest version.",
+      icon: "refresh-outline",
+      date: "March 20, 2025"
+    },
+    {
+      id: 4,
+      title: "CCTV Expansion",
+      description: "CCTV coverage expanded to include all walkways and common areas for enhanced security.",
+      icon: "videocam-outline",
+      date: "March 18, 2025"
+    }
+  ];
+  
+  // Carousel references and state
+  const tipsCarouselRef = useRef(null);
+  const [activeTipIndex, setActiveTipIndex] = useState(0);
 
   useEffect(() => {
     updateGreeting();
-    // Rotate safety tips every 24 hours
-    const tipIndex = Math.floor(new Date().getDate() % safetyTips.length);
-    setCurrentTipIndex(tipIndex);
   }, []);
+  
+  // Auto-scroll effect for tips carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (tipsCarouselRef.current) {
+        const nextIndex = (activeTipIndex + 1) % safetyTips.length;
+        tipsCarouselRef.current.scrollTo({
+          x: nextIndex * (width - 30),
+          animated: true
+        });
+        setActiveTipIndex(nextIndex);
+      }
+    }, 5000); // Scroll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [activeTipIndex]);
 
   const updateGreeting = () => {
     const hour = new Date().getHours();
@@ -68,87 +157,158 @@ export default function Dashboard() {
     );
   };
 
+  // Handle logout with confirmation
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to logout from Unilert?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Logout", 
+          onPress: () => router.push("../login"),
+          style: "destructive"
+        }
+      ]
+    );
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={isDark ? "#121212" : "#FFF"} />
+      
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.greeting}>{greeting}</Text>
-        <TouchableOpacity onPress={() => setShowDropdown(!showDropdown)}>
-          <Ionicons name="person-circle-outline" size={34} color="#333" />
-        </TouchableOpacity>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        <Text style={[styles.greeting, { color: theme.text }]}>{greeting}</Text>
+        <View style={styles.headerControls}>
+          {/* Theme toggle */}
+          <TouchableOpacity 
+            style={[styles.themeToggle, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]} 
+            onPress={toggleTheme}
+          >
+            <Ionicons 
+              name={isDark ? "sunny-outline" : "moon-outline"} 
+              size={22} 
+              color={theme.text} 
+            />
+          </TouchableOpacity>
+          
+          {/* Profile button */}
+          <TouchableOpacity onPress={() => setShowDropdown(!showDropdown)}>
+            <Ionicons name="person-circle-outline" size={34} color={theme.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Dropdown Menu */}
       {showDropdown && (
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { backgroundColor: theme.card, shadowColor: isDark ? '#000' : '#333' }]}>
           <TouchableOpacity 
-            style={styles.dropdownItem} 
+            style={[styles.dropdownItem, { borderBottomColor: theme.border }]} 
             onPress={() => {
               router.push("/tabs/profile");
               setShowDropdown(false);
             }}
           > 
-            <Ionicons name="person-outline" size={20} color="#333" style={styles.dropdownIcon} />
-            <Text style={styles.dropdownText}>Profile</Text>
+            <Ionicons name="person-outline" size={20} color={theme.text} style={styles.dropdownIcon} />
+            <Text style={[styles.dropdownText, { color: theme.text }]}>Profile</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.dropdownItem} 
+            style={[styles.dropdownItem, { borderBottomColor: theme.border }]} 
             onPress={() => {
               router.push("/tabs/settings");
               setShowDropdown(false);
             }}
           > 
-            <Ionicons name="settings-outline" size={20} color="#333" style={styles.dropdownIcon} />
-            <Text style={styles.dropdownText}>Settings</Text>
+            <Ionicons name="settings-outline" size={20} color={theme.text} style={styles.dropdownIcon} />
+            <Text style={[styles.dropdownText, { color: theme.text }]}>Settings</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.dropdownItem, styles.logoutItem]} 
-            onPress={() => {
-              router.push("../login");
-              setShowDropdown(false);
-            }}
+            style={[styles.dropdownItem]} 
+            onPress={handleLogout}
           >
-            <Ionicons name="log-out-outline" size={20} color="#FF3B30" style={styles.dropdownIcon} />
-            <Text style={styles.logoutText}>Logout</Text>
+            <Ionicons name="log-out-outline" size={20} color={theme.danger} style={styles.dropdownIcon} />
+            <Text style={[styles.logoutText, { color: theme.danger }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <ScrollView style={styles.content} onScrollBeginDrag={handlePressOutside}>
+      <ScrollView 
+        style={styles.content} 
+        onScrollBeginDrag={handlePressOutside}
+        contentContainerStyle={{ padding: 15 }}
+      >
         {/* Weather Widget */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.weatherWidget}>
-            <Ionicons name="partly-sunny" size={42} color="#FFD700" />
+            <Ionicons name="partly-sunny" size={42} color={theme.warning} />
             <View style={styles.weatherInfo}>
-              <Text style={styles.weatherText}>28°C, Sunny</Text>
-              <Text style={styles.weatherSubText}>Babcock University</Text>
+              <Text style={[styles.weatherText, { color: theme.text }]}>28°C, Sunny</Text>
+              <Text style={[styles.weatherSubText, { color: theme.secondaryText }]}>Babcock University</Text>
             </View>
           </View>
         </View>
-
-        {/* Daily Safety Tip */}
-        <View style={styles.safetyTip}>
-          <View style={styles.safetyHeaderRow}>
-            <Text style={styles.safetyTitle}>Daily Safety Tip</Text>
-            <Ionicons name="shield-checkmark" size={24} color="#1E90FF" />
+        
+        {/* Daily Safety Tips Carousel - Phone-fitted */}
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <View style={styles.carouselHeader}>
+            <Text style={[styles.carouselTitle, { color: theme.text }]}>Daily Safety Tips</Text>
+            <Ionicons name="shield-checkmark" size={20} color={theme.accent} />
           </View>
-          <Text style={styles.safetyText}>{safetyTips[currentTipIndex]}</Text>
+          
+          <ScrollView
+            ref={tipsCarouselRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              const newIndex = Math.round(event.nativeEvent.contentOffset.x / (width - 30));
+              setActiveTipIndex(newIndex);
+            }}
+          >
+            {safetyTips.map((item) => (
+              <View key={item.id} style={[styles.tipItem, { width: width - 30 }]}>
+                <View style={[styles.tipContainer, {
+                  backgroundColor: isDark ? 'rgba(77, 171, 247, 0.15)' : '#E3F2FD',
+                  borderColor: isDark ? 'rgba(77, 171, 247, 0.3)' : '#C5E1FB'
+                }]}>
+                  <View style={styles.tipHeader}>
+                    <Ionicons name={item.icon} size={28} color={theme.accent} />
+                    <Text style={[styles.tipTitle, { color: theme.accent }]}>{item.title}</Text>
+                  </View>
+                  <Text style={[styles.tipText, { color: theme.text }]}>{item.tip}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+          
+          <View style={styles.paginationDots}>
+            {safetyTips.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  { backgroundColor: index === activeTipIndex ? theme.accent : isDark ? '#444' : '#ddd' },
+                ]}
+              />
+            ))}
+          </View>
         </View>
 
         {/* Safety Tools */}
-        <Text style={styles.sectionTitle}>Safety Tools</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Safety Tools</Text>
         <View style={styles.toolsContainer}>
           <TouchableOpacity style={styles.toolButton} onPress={() => router.push("/tabs/helplines")}> 
             <View style={styles.toolIconContainer}>
               <Ionicons name="call" size={24} color="white" />
             </View>
-            <Text style={styles.toolText}>Safety Helplines</Text>
+            <Text style={[styles.toolText, { color: theme.text }]}>Safety Helplines</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.toolButton} onPress={() => router.push("/tabs/report")}> 
             <View style={[styles.toolIconContainer, { backgroundColor: "#4CAF50" }]}>
               <Ionicons name="document-text-outline" size={24} color="white" />
             </View>
-            <Text style={styles.toolText}>Report Incident</Text>
+            <Text style={[styles.toolText, { color: theme.text }]}>Report Incident</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.toolButton} 
@@ -157,23 +317,38 @@ export default function Dashboard() {
             <View style={[styles.toolIconContainer, { backgroundColor: "#9C27B0" }]}>
               <Ionicons name="map" size={24} color="white" />
             </View>
-            <Text style={styles.toolText}>Safety Map</Text>
+            <Text style={[styles.toolText, { color: theme.text }]}>Safety Map</Text>
           </TouchableOpacity>
         </View>
 
         {/* Recent Alerts */}
         <View style={styles.alertsHeader}>
-          <Text style={styles.sectionTitle}>Recent Alerts</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Alerts</Text>
           <TouchableOpacity onPress={() => router.push("/tabs/alerts")}>
-            <Text style={styles.viewAllText}>View All</Text>
+            <Text style={[styles.viewAllText, { color: theme.accent }]}>View All</Text>
           </TouchableOpacity>
         </View>
         
         {alerts.map((alert) => (
-          <View key={alert.id} style={[styles.alertContainer, alert.urgent && styles.urgentAlert]}>
-            <Text style={styles.alertText}>{alert.message}</Text>
+          <View 
+            key={alert.id} 
+            style={[
+              styles.alertContainer, 
+              { backgroundColor: theme.card },
+              alert.urgent && [
+                styles.urgentAlert, 
+                { backgroundColor: isDark ? 'rgba(255, 59, 48, 0.2)' : '#FFF5F5' }
+              ]
+            ]}
+          >
+            <Text style={[
+              styles.alertText, 
+              { color: alert.urgent ? (isDark ? '#ff6b6b' : "#FF3B30") : theme.text }
+            ]}>
+              {alert.message}
+            </Text>
             <View style={styles.alertFooter}>
-              <Text style={styles.alertTime}>{alert.time}</Text>
+              <Text style={[styles.alertTime, { color: theme.secondaryText }]}>{alert.time}</Text>
               {alert.urgent && (
                 <View style={styles.urgentBadge}>
                   <Text style={styles.urgentText}>URGENT</Text>
@@ -183,22 +358,48 @@ export default function Dashboard() {
           </View>
         ))}
         
+        {/* Campus Safety Updates as a list */}
+        <View style={styles.updatesHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Campus Safety Updates</Text>
+        </View>
+        
+        {safetyUpdates.map((update) => (
+          <View 
+            key={update.id} 
+            style={[
+              styles.updateListItem, 
+              { backgroundColor: theme.card }
+            ]}
+          >
+            <View style={styles.updateIconWrapper}>
+              <View style={[styles.updateIcon, { backgroundColor: isDark ? 'rgba(77, 171, 247, 0.2)' : '#e6f2ff' }]}>
+                <Ionicons name={update.icon} size={22} color={theme.accent} />
+              </View>
+            </View>
+            <View style={styles.updateContent}>
+              <Text style={[styles.updateTitle, { color: theme.text }]}>{update.title}</Text>
+              <Text style={[styles.updateDescription, { color: theme.secondaryText }]}>{update.description}</Text>
+              <Text style={[styles.updateDate, { color: theme.secondaryText }]}>{update.date}</Text>
+            </View>
+          </View>
+        ))}
+        
         {/* Quick Access */}
-        <Text style={styles.sectionTitle}>Quick Access</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Quick Access</Text>
         <View style={styles.quickAccessContainer}>
           <TouchableOpacity 
-            style={styles.quickAccessButton} 
+            style={[styles.quickAccessButton, { backgroundColor: theme.card }]} 
             onPress={() => showComingSoonAlert("Safety Resources")}
           >
-            <Ionicons name="book-outline" size={24} color="#1E90FF" />
-            <Text style={styles.quickAccessText}>Safety Resources</Text>
+            <Ionicons name="book-outline" size={24} color={theme.accent} />
+            <Text style={[styles.quickAccessText, { color: theme.text }]}>Safety Resources</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.quickAccessButton} 
+            style={[styles.quickAccessButton, { backgroundColor: theme.card }]} 
             onPress={() => showComingSoonAlert("Safety Training")}
           >
-            <Ionicons name="school-outline" size={24} color="#1E90FF" />
-            <Text style={styles.quickAccessText}>Safety Training</Text>
+            <Ionicons name="school-outline" size={24} color={theme.accent} />
+            <Text style={[styles.quickAccessText, { color: theme.text }]}>Safety Training</Text>
           </TouchableOpacity>
         </View>
         
@@ -207,22 +408,35 @@ export default function Dashboard() {
       </ScrollView>
 
       {/* Navigation Bar */}
-      <View style={styles.navbar}>
+      <View style={[
+        styles.navbar, 
+        { 
+          backgroundColor: theme.card, 
+          borderTopColor: theme.border,
+          shadowColor: isDark ? '#000' : '#333'
+        }
+      ]}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/dashboard")}> 
           <Ionicons 
             name={pathname === "/tabs/dashboard" ? "home" : "home-outline"} 
             size={28} 
-            color={pathname === "/tabs/dashboard" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/dashboard" ? theme.accent : theme.secondaryText} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/dashboard" && styles.activeNavText]}>Home</Text>
+          <Text style={[
+            styles.navText, 
+            { color: pathname === "/tabs/dashboard" ? theme.accent : theme.secondaryText }
+          ]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/emergency-contacts")}> 
           <Ionicons 
             name={pathname === "/tabs/emergency-contacts" ? "people" : "people-outline"} 
             size={28} 
-            color={pathname === "/tabs/emergency-contacts" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/emergency-contacts" ? theme.accent : theme.secondaryText} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/emergency-contacts" && styles.activeNavText]}>Contacts</Text>
+          <Text style={[
+            styles.navText, 
+            { color: pathname === "/tabs/emergency-contacts" ? theme.accent : theme.secondaryText }
+          ]}>Contacts</Text>
         </TouchableOpacity>
         
         {/* Center SOS Button */}
@@ -237,17 +451,23 @@ export default function Dashboard() {
           <Ionicons 
             name={pathname === "/tabs/profile" ? "person" : "person-outline"} 
             size={28} 
-            color={pathname === "/tabs/profile" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/profile" ? theme.accent : theme.secondaryText} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/profile" && styles.activeNavText]}>Profile</Text>
+          <Text style={[
+            styles.navText, 
+            { color: pathname === "/tabs/profile" ? theme.accent : theme.secondaryText }
+          ]}>Profile</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/tabs/notifications")}> 
           <Ionicons 
             name={pathname === "/tabs/notifications" ? "notifications" : "notifications-outline"} 
             size={28} 
-            color={pathname === "/tabs/notifications" ? "#1E90FF" : "#333"} 
+            color={pathname === "/tabs/notifications" ? theme.accent : theme.secondaryText} 
           />
-          <Text style={[styles.navText, pathname === "/tabs/notifications" && styles.activeNavText]}>Notifications</Text>
+          <Text style={[
+            styles.navText, 
+            { color: pathname === "/tabs/notifications" ? theme.accent : theme.secondaryText }
+          ]}>Notifications</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -256,8 +476,7 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
-    backgroundColor: "#F8F9FA",
+    flex: 1,
   },
   header: { 
     flexDirection: "row", 
@@ -266,37 +485,42 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#EFEFEF",
-    backgroundColor: "#FFF"
+    paddingTop: Platform.OS === 'android' ? 40 : 15,
+  },
+  headerControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 15,
+  },
+  themeToggle: {
+    padding: 8,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
   greeting: { 
     fontSize: 20, 
     fontWeight: "700",
-    color: "#333"
   },
   content: {
     flex: 1,
-    padding: 15,
   },
   dropdown: { 
     position: "absolute", 
-    top: 65, 
+    top: Platform.OS === 'android' ? 85 : 65,
     right: 15, 
-    backgroundColor: "white", 
     borderRadius: 10, 
     elevation: 5, 
     padding: 5, 
     width: 180, 
     zIndex: 1000,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
   dropdownItem: { 
     padding: 12, 
-    borderBottomWidth: 1, 
-    borderBottomColor: "#EFEFEF",
+    borderBottomWidth: 1,
     flexDirection: "row",
     alignItems: "center"
   },
@@ -305,20 +529,17 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 16,
-    color: "#333"
   },
   logoutItem: {
     borderBottomWidth: 0
   },
   logoutText: {
     fontSize: 16,
-    color: "#FF3B30",
     fontWeight: "500"
   },
   card: {
-    backgroundColor: "#FFF",
     borderRadius: 12,
-    padding: 5,
+    padding: 15,
     marginBottom: 15,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -329,7 +550,6 @@ const styles = StyleSheet.create({
   weatherWidget: { 
     flexDirection: "row", 
     alignItems: "center", 
-    padding: 15, 
     borderRadius: 10,
   },
   weatherInfo: {
@@ -337,47 +557,61 @@ const styles = StyleSheet.create({
   },
   weatherText: { 
     fontSize: 18, 
-    fontWeight: "bold", 
-    color: "#333"
+    fontWeight: "bold",
   },
   weatherSubText: { 
-    fontSize: 14, 
-    color: "#666", 
+    fontSize: 14,
     marginTop: 3
   },
-  safetyTip: { 
-    backgroundColor: "#E3F2FD", 
-    padding: 20, 
-    borderRadius: 12, 
-    marginBottom: 20,
-    shadowColor: "#1E90FF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  safetyHeaderRow: {
+  carouselHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15
+    marginBottom: 10,
   },
-  safetyTitle: { 
-    fontSize: 22, 
+  carouselTitle: {
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#1E90FF"
   },
-  safetyText: { 
-    fontSize: 16, 
-    lineHeight: 24,
-    color: "#333"
+  tipItem: {
+    paddingRight: 0,
+  },
+  tipContainer: {
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    width: 363,
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  tipText: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  paginationDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 10
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 4
   },
   sectionTitle: { 
     fontSize: 18, 
     fontWeight: "bold", 
     marginBottom: 12,
     marginTop: 5,
-    color: "#333"
   },
   toolsContainer: { 
     flexDirection: "row", 
@@ -408,7 +642,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     textAlign: "center",
-    color: "#333"
   },
   alertsHeader: {
     flexDirection: "row",
@@ -416,13 +649,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10
   },
+  updatesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    marginTop: 5
+  },
   viewAllText: {
-    color: "#1E90FF",
     fontSize: 14,
     fontWeight: "500"
   },
   alertContainer: { 
-    backgroundColor: "#FFF", 
     padding: 15, 
     borderRadius: 12, 
     marginBottom: 15,
@@ -436,12 +674,10 @@ const styles = StyleSheet.create({
   },
   urgentAlert: {
     borderLeftColor: "#FF3B30",
-    backgroundColor: "#FFF5F5"
   },
   alertText: { 
     fontSize: 14, 
     fontWeight: "500",
-    color: "#333",
     lineHeight: 20
   },
   alertFooter: {
@@ -451,8 +687,7 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
   alertTime: { 
-    fontSize: 12, 
-    color: "#888" 
+    fontSize: 12,
   },
   urgentBadge: {
     backgroundColor: "#FF3B30",
@@ -465,13 +700,50 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "bold"
   },
+  updateListItem: {
+    flexDirection: "row",
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  updateIconWrapper: {
+    marginRight: 15
+  },
+  updateIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  updateContent: {
+    flex: 1
+  },
+  updateTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4
+  },
+  updateDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 5
+  },
+  updateDate: {
+    fontSize: 12,
+    fontStyle: "italic"
+  },
   quickAccessContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 20
   },
   quickAccessButton: {
-    backgroundColor: "#FFF",
     borderRadius: 12,
     padding: 15,
     flexDirection: "row",
@@ -487,21 +759,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 10,
-    color: "#333"
   },
   navbar: { 
     flexDirection: "row", 
     justifyContent: "space-around", 
     alignItems: "center", 
     paddingVertical: 8, 
-    backgroundColor: "#FFF", 
     position: "absolute", 
     bottom: 0, 
     left: 0, 
     right: 0, 
-    borderTopWidth: 1, 
-    borderTopColor: "#EFEFEF",
-    shadowColor: "#000",
+    borderTopWidth: 1,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -513,12 +781,7 @@ const styles = StyleSheet.create({
   },
   navText: {
     fontSize: 12,
-    color: "#777",
     marginTop: 2
-  },
-  activeNavText: {
-    color: "#1E90FF",
-    fontWeight: "500"
   },
   sosButton: {
     backgroundColor: "#FF3B30",
