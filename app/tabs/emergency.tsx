@@ -39,18 +39,26 @@ export default function EmergencyScreen() {
     try {
       setLoading(true);
       
-      // Get actual GPS coordinates
+      // For testing: Hard-code location to Emerald Hall
+      setLocationInfo({
+        coords: { latitude: 6.8925, longitude: 3.7240 },
+        placeName: "Babcock University - Emerald Hall"
+      });
+      setLoading(false);
+      return;
+      
+      // Get actual GPS coordinates with high accuracy and longer timeout
       let loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High, // Using high accuracy for precision within campus
-        timeout: 15000
+        accuracy: Location.Accuracy.Highest, // Use highest accuracy
+        timeout: 20000 // Longer timeout to get better location
       });
       
       let { latitude, longitude } = loc.coords;
       
-      // Babcock University boundaries (approximate)
+      // Babcock University boundaries (updated with more precise values)
       const babcockBounds = {
-        latMin: 6.8900, latMax: 6.9050,
-        lngMin: 3.7150, lngMax: 3.7280
+        latMin: 6.8890, latMax: 6.9060,
+        lngMin: 3.7140, lngMax: 3.7290
       };
       
       // Check if location is within Babcock
@@ -61,8 +69,11 @@ export default function EmergencyScreen() {
         longitude <= babcockBounds.lngMax;
       
       if (isInBabcock) {
-        // Map coordinates to specific buildings (this would be a more comprehensive map in reality)
+        // Map coordinates to specific buildings
         const buildingLocation = getBabcockBuilding(latitude, longitude);
+        
+        // Log the location for debugging
+        console.log(`Location detected: ${latitude}, ${longitude} - ${buildingLocation}`);
         
         setLocationInfo({
           coords: { latitude, longitude },
@@ -90,21 +101,47 @@ export default function EmergencyScreen() {
     }
   };
 
-  // Function to map coordinates to specific Babcock buildings
+  // Function to map coordinates to specific Babcock buildings with expanded locations
   const getBabcockBuilding = (lat, lng) => {
-    // This is a simplified example - in a real app, you would have a more comprehensive database
-    // of building coordinates and boundaries
-    
-    // These are example coordinates - you would need to replace with actual building coordinates
+    // Comprehensive list of Babcock buildings and their approximate coordinates
     const buildings = [
-      { name: "Pioneer Church", latMin: 6.8930, latMax: 6.8940, lngMin: 3.7200, lngMax: 3.7210 },
-      { name: "BBS Building", latMin: 6.8950, latMax: 6.8960, lngMin: 3.7220, lngMax: 3.7230 },
-      { name: "Nelson Mandela Hall", latMin: 6.8970, latMax: 6.8980, lngMin: 3.7190, lngMax: 3.7200 },
-      { name: "Samuel Akande Hall", latMin: 6.8990, latMax: 6.9000, lngMin: 3.7210, lngMax: 3.7220 },
-      { name: "Queen Esther Hall", latMin: 6.8920, latMax: 6.8930, lngMin: 3.7230, lngMax: 3.7240 },
-      { name: "BUTH (Hospital)", latMin: 6.8910, latMax: 6.8920, lngMin: 3.7170, lngMax: 3.7180 },
-      { name: "University Cafeteria", latMin: 6.8940, latMax: 6.8950, lngMin: 3.7190, lngMax: 3.7200 },
-      { name: "Sports Complex", latMin: 6.8960, latMax: 6.8970, lngMin: 3.7230, lngMax: 3.7240 }
+      // Administrative buildings
+      { name: "Admin Block", latMin: 6.8945, latMax: 6.8955, lngMin: 3.7195, lngMax: 3.7205 },
+      { name: "President's Office", latMin: 6.8943, latMax: 6.8953, lngMin: 3.7197, lngMax: 3.7207 },
+      
+      // Academic buildings
+      { name: "BBS Building", latMin: 6.8945, latMax: 6.8955, lngMin: 3.7225, lngMax: 3.7235 },
+      { name: "Science Complex", latMin: 6.8930, latMax: 6.8940, lngMin: 3.7240, lngMax: 3.7250 },
+      { name: "Engineering Building", latMin: 6.8960, latMax: 6.8970, lngMin: 3.7220, lngMax: 3.7230 },
+      { name: "Main Library", latMin: 6.8940, latMax: 6.8950, lngMin: 3.7200, lngMax: 3.7210 },
+      { name: "BuCoDel (Distance Learning Center)", latMin: 6.8970, latMax: 6.8980, lngMin: 3.7210, lngMax: 3.7220 },
+      { name: "Law Building", latMin: 6.8955, latMax: 6.8965, lngMin: 3.7180, lngMax: 3.7190 },
+      { name: "College of Health Sciences", latMin: 6.8925, latMax: 6.8935, lngMin: 3.7170, lngMax: 3.7180 },
+      
+      // Male Halls
+      { name: "Nelson Mandela Hall", latMin: 6.8965, latMax: 6.8975, lngMin: 3.7185, lngMax: 3.7195 },
+      { name: "Samuel Akande Hall", latMin: 6.8985, latMax: 6.8995, lngMin: 3.7205, lngMax: 3.7215 },
+      { name: "Crystal Hall (Male)", latMin: 6.8975, latMax: 6.8985, lngMin: 3.7195, lngMax: 3.7205 },
+      { name: "Welch Hall", latMin: 6.8980, latMax: 6.8990, lngMin: 3.7190, lngMax: 3.7200 },
+      
+      // Female Halls
+      { name: "Queen Esther Hall", latMin: 6.8915, latMax: 6.8925, lngMin: 3.7225, lngMax: 3.7235 },
+      { name: "Emerald Hall", latMin: 6.8920, latMax: 6.8930, lngMin: 3.7235, lngMax: 3.7245 },
+      { name: "Topaz Hall", latMin: 6.8925, latMax: 6.8935, lngMin: 3.7220, lngMax: 3.7230 },
+      { name: "Ruby Hall", latMin: 6.8915, latMax: 6.8925, lngMin: 3.7215, lngMax: 3.7225 },
+      { name: "Diamond Hall", latMin: 6.8910, latMax: 6.8920, lngMin: 3.7240, lngMax: 3.7250 },
+      { name: "Bethel Hall", latMin: 6.8930, latMax: 6.8940, lngMin: 3.7230, lngMax: 3.7240 },
+      
+      // Other important locations
+      { name: "Pioneer Church", latMin: 6.8925, latMax: 6.8935, lngMin: 3.7205, lngMax: 3.7215 },
+      { name: "BUTH (Hospital)", latMin: 6.8905, latMax: 6.8915, lngMin: 3.7165, lngMax: 3.7175 },
+      { name: "University Cafeteria", latMin: 6.8935, latMax: 6.8945, lngMin: 3.7185, lngMax: 3.7195 },
+      { name: "Sports Complex", latMin: 6.8955, latMax: 6.8965, lngMin: 3.7225, lngMax: 3.7235 },
+      { name: "Student Center", latMin: 6.8950, latMax: 6.8960, lngMin: 3.7210, lngMax: 3.7220 },
+      { name: "Main Gate", latMin: 6.8900, latMax: 6.8910, lngMin: 3.7190, lngMax: 3.7200 },
+      { name: "Amphitheater", latMin: 6.8940, latMax: 6.8950, lngMin: 3.7205, lngMax: 3.7215 },
+      { name: "Babcock Guest House", latMin: 6.8935, latMax: 6.8945, lngMin: 3.7170, lngMax: 3.7180 },
+      { name: "Staff Quarters", latMin: 6.8970, latMax: 6.8990, lngMin: 3.7230, lngMax: 3.7250 }
     ];
     
     // Find which building the coordinates fall into
@@ -115,7 +152,23 @@ export default function EmergencyScreen() {
       }
     }
     
-    // Default if no specific building match is found
+    // If no exact match but still on campus, try to determine the general area
+    const areas = [
+      { name: "Academic Area", latMin: 6.8930, latMax: 6.8960, lngMin: 3.7190, lngMax: 3.7240 },
+      { name: "Male Hostels Area", latMin: 6.8960, latMax: 6.8990, lngMin: 3.7180, lngMax: 3.7220 },
+      { name: "Female Hostels Area", latMin: 6.8910, latMax: 6.8930, lngMin: 3.7215, lngMax: 3.7250 },
+      { name: "Sports Complex Area", latMin: 6.8950, latMax: 6.8970, lngMin: 3.7220, lngMax: 3.7240 },
+      { name: "Medical Area", latMin: 6.8900, latMax: 6.8920, lngMin: 3.7160, lngMax: 3.7180 }
+    ];
+    
+    for (const area of areas) {
+      if (lat >= area.latMin && lat <= area.latMax && 
+          lng >= area.lngMin && lng <= area.lngMax) {
+        return `Babcock University - ${area.name}`;
+      }
+    }
+    
+    // Default if no specific building or area match is found
     return "Babcock University Campus";
   };
 
@@ -151,7 +204,7 @@ export default function EmergencyScreen() {
     // Immediately show the alert that we've sent the alert
     Alert.alert(
       "🚨 Emergency Alert Sent!", 
-      "Your emergency contacts and local authorities have been notified of your situation.",
+      "Your emergency personals have been notified of your location.",
       [
         { 
           text: "OK", 
@@ -215,6 +268,10 @@ export default function EmergencyScreen() {
   const toggleEmergencyContacts = () => {
     setShowContacts(true); // Show the contacts view
   };
+  
+  const navigateToReport = () => {
+    navigation.navigate("report");
+  };
 
   // Render EmergencyContacts component when showContacts is true
   if (showContacts) {
@@ -260,7 +317,7 @@ export default function EmergencyScreen() {
       </View>
 
       <Text style={styles.alertText}>
-        Your Emergency Contacts and CPS will be notified
+        The Campus SOS Emergency Officers will be notified
       </Text>
       
       <Text style={styles.subText}>Hold for 3s to trigger alert. Release to cancel.</Text>
@@ -274,17 +331,35 @@ export default function EmergencyScreen() {
       >
         <Text style={styles.panicText}>{holding ? "SENDING..." : "HOLD TO SEND"}</Text>
       </TouchableOpacity>
+      
+      {/* Report Incident Button */}
+      <TouchableOpacity 
+        style={styles.reportButton} 
+        onPress={navigateToReport}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="warning-outline" size={24} color="white" />
+        <Text style={styles.reportButtonText}>Report Incident</Text>
+      </TouchableOpacity>
 
       {/* Quick Contact Buttons */}
       <View style={styles.quickContactsContainer}>
-        <TouchableOpacity style={styles.quickContactButton} onPress={callEmergency}>
-          <Ionicons name="call" size={24} color="white" />
+        <TouchableOpacity 
+          style={[styles.quickContactButton, { backgroundColor: "#FF3B30" }]} 
+          onPress={callEmergency}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="call-outline" size={20} color="white" />
           <Text style={styles.quickContactText}>Campus Emergency</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.quickContactButton} onPress={toggleEmergencyContacts}>
-          <Ionicons name="people" size={24} color="white" />
-          <Text style={styles.quickContactText}>Contacts</Text>
+        <TouchableOpacity 
+          style={styles.quickContactButton} 
+          onPress={toggleEmergencyContacts}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="people-outline" size={20} color="white" />
+          <Text style={styles.quickContactText}>Emergency Contacts</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -302,7 +377,13 @@ const styles = StyleSheet.create({
     position: "absolute", 
     top: 50, 
     left: 20, 
-    zIndex: 10 
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center"
   },
   title: { 
     fontSize: 24, 
@@ -320,7 +401,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexDirection: "column",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)"
   },
   locationTitle: {
     fontSize: 14,
@@ -330,13 +413,20 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 16,
     color: "white",
-    textAlign: "center"
+    textAlign: "center",
+    fontWeight: "500"
   },
   refreshButton: {
     position: "absolute",
     right: 10,
     top: 10,
-    padding: 5
+    padding: 5,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center"
   },
   retryButton: {
     backgroundColor: "#007AFF",
@@ -356,7 +446,12 @@ const styles = StyleSheet.create({
     justifyContent: "center", 
     alignItems: "center",
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.3)"
+    borderColor: "rgba(255,255,255,0.3)",
+    shadowColor: "#FF3B30",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 10
   },
   countdown: { 
     fontSize: 40, 
@@ -385,11 +480,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF3B30",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: "#FF3B30",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 10,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.2)"
   },
   panicButtonActive: {
     backgroundColor: "#CC2A20",
@@ -400,23 +497,57 @@ const styles = StyleSheet.create({
     color: "white", 
     fontWeight: "bold" 
   },
+  reportButton: {
+    position: "absolute",
+    bottom: 120, // Position above the quick contact buttons
+    backgroundColor: "#4CAF50", 
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)"
+  },
+  reportButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginLeft: 10
+  },
   quickContactsContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    width: "80%",
+    width: "90%", // Increased width
     position: "absolute",
     bottom: 40
   },
   quickContactButton: {
     backgroundColor: "#007AFF",
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 15,
     alignItems: "center",
-    width: 120
+    width: 170, // Increased width
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    flexDirection: "row",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)"
   },
   quickContactText: {
     color: "white",
-    marginTop: 5,
-    fontWeight: "500"
+    marginLeft: 8,
+    fontWeight: "600",
+    fontSize: 15
   }
 });

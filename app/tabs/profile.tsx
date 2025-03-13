@@ -333,8 +333,9 @@ const [profileData, setProfileData] = useState({
             tempValue={tempData.email}
             editing={editing}
             onChangeText={(value) => handleTextChange('email', value)}
-            editable={true}
+            editable={false}
             keyboardType="email-address"
+            helperText="School email address cannot be changed"
           />
 
           <InfoField 
