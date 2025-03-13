@@ -15,43 +15,54 @@ import {
 import { Ionicons, Entypo, MaterialIcons, Feather, FontAwesome } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-// Import pages
-import SettingsScreen from "./settings"; // Adjust the path as needed
-import HelpScreen from "./help"; // Adjust the path as needed
-import LoginScreen from "../login"; // Adjust the path as needed
+import { useTheme } from "../../contexts/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
+  const { theme, isDark } = useTheme();
+  const { userProfile, updateProfile, signOut, refreshProfile } = useAuth();
+  
   const [menuVisible, setMenuVisible] = useState(false);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
-  
-  // States to control which screen to show
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   
-  // User profile data state
-const [profileData, setProfileData] = useState({
-  name: "Emmanuel James",
-  matricNo: "21/2345",
-  phoneNo: "", // Set to empty string
-  course: "Software Engineering",
-  department: "Software Engineering",
-  email: "emmanuel@student.babcock.edu.ng",
-  level: "300 Level",
-  Hall: "", // Set to empty string
-  profileImage: "https://via.placeholder.com/100"
-});
-  
   // Temporary state for editing
-  const [tempData, setTempData] = useState({...profileData});
+  const [tempData, setTempData] = useState({
+    full_name: "",
+    matric_no: "",
+    phone_number: "",
+    course: "",
+    department: "",
+    email: "",
+    level: "",
+    hall: "",
+    profile_image_url: ""
+  });
   
-  // Load user data on mount
+  // Load user data whenever userProfile changes
   useEffect(() => {
-    loadUserData();
+    if (userProfile) {
+      setTempData({
+        full_name: userProfile.full_name || "",
+        matric_no: userProfile.matric_no || "",
+        phone_number: userProfile.phone_number || "",
+        course: userProfile.course || "",
+        department: userProfile.department || "",
+        email: userProfile.email || "",
+        level: userProfile.level || "",
+        hall: userProfile.hall || "",
+        profile_image_url: userProfile.profile_image_url || "https://via.placeholder.com/100"
+      });
+    }
+  }, [userProfile]);
+  
+  // Request permissions on component mount
+  useEffect(() => {
     requestPermissions();
   }, []);
   
@@ -64,65 +75,47 @@ const [profileData, setProfileData] = useState({
     }
   };
   
-  const loadUserData = async () => {
+  // Function to upload an image to Supabase Storage
+  const uploadImage = async (uri) => {
+    if (!uri) return null;
+    
     try {
       setLoading(true);
-      // In a real app, this would come from an API or AsyncStorage
-      const savedData = await AsyncStorage.getItem('userProfile');
-      if (savedData) {
-        const userData = JSON.parse(savedData);
-        setProfileData(userData);
-        setTempData(userData);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading user data:", error);
-      setLoading(false);
-    }
-  };
-  
-  const saveUserData = async () => {
-    try {
-      setLoading(true);
-      // Validate inputs
-      if (!tempData.name || !tempData.phoneNo) {
-        Alert.alert("Validation Error", "Name and Phone Number are required fields");
-        setLoading(false);
-        return;
-      }
       
-      // In a real app, this would be sent to an API
-      await AsyncStorage.setItem('userProfile', JSON.stringify(tempData));
-      setProfileData(tempData);
-      setEditing(false);
-      setLoading(false);
-      Alert.alert("Success", "Profile updated successfully");
+      // Get the file name from the URI
+      const fileName = uri.split('/').pop();
+      // Get the file extension
+      const fileExt = fileName.split('.').pop();
+      // Create a unique file name to prevent overwriting
+      const filePath = `${Date.now()}.${fileExt}`;
+      
+      // Convert the image to a blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // Upload the image to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('profile-images')
+        .upload(filePath, blob, {
+          contentType: `image/${fileExt}`,
+          upsert: true
+        });
+      
+      if (error) throw error;
+      
+      // Get the public URL of the uploaded image
+      const { data: publicUrlData } = supabase.storage
+        .from('profile-images')
+        .getPublicUrl(filePath);
+      
+      return publicUrlData.publicUrl;
     } catch (error) {
-      console.error("Error saving user data:", error);
+      console.error('Error uploading image:', error);
+      Alert.alert('Upload Error', 'Failed to upload profile image. Please try again.');
+      return null;
+    } finally {
       setLoading(false);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
     }
-  };
-  
-  const handleLogout = () => {
-    Alert.alert(
-      "Confirm Logout",
-      "Are you sure you want to logout?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Logout",
-          onPress: () => {
-            // Navigate to the login screen
-            navigation.replace("login");
-          },
-          style: "destructive"
-        }
-      ]
-    );
   };
   
   const handleEditToggle = () => {
@@ -131,14 +124,79 @@ const [profileData, setProfileData] = useState({
       saveUserData();
     } else {
       // If we're starting to edit
-      setTempData({...profileData});
+      setTempData({...tempData});
       setEditing(true);
     }
   };
   
   const handleCancel = () => {
-    setTempData({...profileData});
+    if (userProfile) {
+      // Reset to current profile data
+      setTempData({
+        full_name: userProfile.full_name || "",
+        matric_no: userProfile.matric_no || "",
+        phone_number: userProfile.phone_number || "",
+        course: userProfile.course || "",
+        department: userProfile.department || "",
+        email: userProfile.email || "",
+        level: userProfile.level || "",
+        hall: userProfile.hall || "",
+        profile_image_url: userProfile.profile_image_url || "https://via.placeholder.com/100"
+      });
+    }
     setEditing(false);
+  };
+  
+  const saveUserData = async () => {
+    try {
+      setLoading(true);
+      
+      // Validate inputs
+      if (!tempData.full_name) {
+        Alert.alert("Validation Error", "Name is required");
+        setLoading(false);
+        return;
+      }
+      
+      let imageUrl = tempData.profile_image_url;
+      
+      // Check if image needs to be uploaded (if it's a local URI)
+      if (tempData.profile_image_url && !tempData.profile_image_url.startsWith('http')) {
+        const uploadedUrl = await uploadImage(tempData.profile_image_url);
+        if (uploadedUrl) {
+          imageUrl = uploadedUrl;
+        }
+      }
+      
+      // Prepare update data
+      const updates = {
+        full_name: tempData.full_name,
+        phone_number: tempData.phone_number || null,
+        hall: tempData.hall || null,
+        profile_image_url: imageUrl
+      };
+      
+      // Only include fields that can be edited by the user
+      if (!userProfile.course) updates.course = tempData.course || null;
+      if (!userProfile.department) updates.department = tempData.department || null;
+      if (!userProfile.level) updates.level = tempData.level || null;
+      
+      // Update profile in Supabase
+      const { error } = await updateProfile(updates);
+      
+      if (error) throw error;
+      
+      // Refresh the profile data
+      await refreshProfile();
+      
+      setEditing(false);
+      Alert.alert("Success", "Profile updated successfully");
+    } catch (error) {
+      console.error("Error saving user data:", error.message);
+      Alert.alert("Update Error", "Failed to update profile. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
   
   const pickImage = async (source) => {
@@ -164,31 +222,26 @@ const [profileData, setProfileData] = useState({
       }
       
       if (!result.canceled) {
-        // Update the temporary data
+        // Update the temporary data with the image URI
         setTempData({
           ...tempData,
-          profileImage: result.assets[0].uri
+          profile_image_url: result.assets[0].uri
         });
         
-        // If we're not in editing mode, save the image immediately
+        // If not in editing mode, save immediately
         if (!editing) {
-          setProfileData({
-            ...profileData,
-            profileImage: result.assets[0].uri
-          });
-          
-          // Save to storage
-          const updatedData = {
-            ...profileData,
-            profileImage: result.assets[0].uri
-          };
-          await AsyncStorage.setItem('userProfile', JSON.stringify(updatedData));
-          Alert.alert("Success", "Profile picture updated successfully");
+          const uploadedUrl = await uploadImage(result.assets[0].uri);
+          if (uploadedUrl) {
+            // Update profile with new image URL
+            await updateProfile({ profile_image_url: uploadedUrl });
+            await refreshProfile();
+            Alert.alert("Success", "Profile picture updated successfully");
+          }
         }
       }
     } catch (error) {
       console.error("Error picking image:", error);
-      Alert.alert("Error", "Failed to upload image. Please try again.");
+      Alert.alert("Error", "Failed to select image. Please try again.");
     }
   };
   
@@ -197,6 +250,29 @@ const [profileData, setProfileData] = useState({
       ...tempData,
       [field]: value
     });
+  };
+  
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Logout", 
+          onPress: async () => {
+            try {
+              await signOut();
+              navigation.replace("login");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
+            }
+          },
+          style: "destructive"
+        }
+      ]
+    );
   };
 
   // If showing settings or help screens
@@ -209,59 +285,67 @@ const [profileData, setProfileData] = useState({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {loading && (
-        <View style={styles.loadingOverlay}>
+        <View style={[styles.loadingOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.3)' }]}>
           <ActivityIndicator size="large" color="#FFD700" />
         </View>
       )}
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="black" />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={[styles.title, { color: "#FFD700" }]}>Profile</Text>
         {/* Menu Icon */}
         <TouchableOpacity onPress={() => setMenuVisible(!menuVisible)}>
-          <Entypo name="menu" size={28} color="black" />
+          <Entypo name="menu" size={28} color={theme.text} />
         </TouchableOpacity>
         {/* Dropdown Menu */}
         {menuVisible && (
-          <View style={styles.dropdown}>
+          <View style={[styles.dropdown, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <TouchableOpacity 
-              style={styles.dropdownItem} 
+              style={[styles.dropdownItem, { borderBottomColor: theme.border }]} 
               onPress={() => {
                 setMenuVisible(false);
                 setShowSettings(true);
               }}
             >
-              <Ionicons name="settings-outline" size={18} color="black" />
-              <Text style={styles.dropdownText}>Settings</Text>
+              <Ionicons name="settings-outline" size={18} color={theme.text} />
+              <Text style={[styles.dropdownText, { color: theme.text }]}>Settings</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={styles.dropdownItem} 
+              style={[styles.dropdownItem, { borderBottomColor: theme.border }]} 
               onPress={() => {
                 setMenuVisible(false);
                 setShowHelp(true);
               }}
             >
-              <Feather name="help-circle" size={18} color="black" />
-              <Text style={styles.dropdownText}>Help</Text>
+              <Feather name="help-circle" size={18} color={theme.text} />
+              <Text style={[styles.dropdownText, { color: theme.text }]}>Help</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
-              <Feather name="log-out" size={18} color="red" />
-              <Text style={[styles.dropdownText, {color: 'red'}]}>Log Out</Text>
+              <Feather name="log-out" size={18} color={theme.danger} />
+              <Text style={[styles.dropdownText, {color: theme.danger}]}>Log Out</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         {/* Profile Picture */}
         <View style={styles.profileContainer}>
           <Image 
-            source={{ uri: editing ? tempData.profileImage : profileData.profileImage }} 
+            source={{ 
+              uri: editing 
+                ? tempData.profile_image_url 
+                : (userProfile?.profile_image_url || "https://via.placeholder.com/100") 
+            }} 
             style={styles.profileImage} 
           />
           <TouchableOpacity 
@@ -272,20 +356,22 @@ const [profileData, setProfileData] = useState({
           </TouchableOpacity>
         </View>
         
-        <Text style={styles.profileName}>{editing ? tempData.name : profileData.name}</Text>
-        <Text style={styles.profileRole}>Student</Text>
+        <Text style={[styles.profileName, { color: theme.text }]}>
+          {editing ? tempData.full_name : (userProfile?.full_name || "User")}
+        </Text>
+        <Text style={[styles.profileRole, { color: theme.secondaryText }]}>Student</Text>
         
         {/* User Details */}
-        <View style={styles.detailsContainer}>
+        <View style={[styles.detailsContainer, { backgroundColor: theme.card }]}>
           <View style={styles.detailsHeader}>
-            <Text style={styles.detailsTitle}>Personal Information</Text>
+            <Text style={[styles.detailsTitle, { color: theme.text }]}>Personal Information</Text>
             <View style={styles.actionButtons}>
               {editing && (
                 <TouchableOpacity 
                   style={styles.cancelButton} 
                   onPress={handleCancel}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={[styles.cancelButtonText, { color: theme.secondaryText }]}>Cancel</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity 
@@ -299,123 +385,125 @@ const [profileData, setProfileData] = useState({
           </View>
 
           <InfoField 
-  label="FULL NAME:" 
-  value={profileData.name}
-  tempValue={tempData.name}
-  editing={editing}
-  onChangeText={(value) => handleTextChange('name', value)}
-  editable={true}
-/>
+            label="FULL NAME:" 
+            value={userProfile?.full_name || ""}
+            tempValue={tempData.full_name}
+            editing={editing}
+            onChangeText={(value) => handleTextChange('full_name', value)}
+            editable={true}
+            theme={theme}
+          />
 
           <InfoField 
             label="Matric No:" 
-            value={profileData.matricNo}
-            tempValue={tempData.matricNo}
+            value={userProfile?.matric_no || ""}
+            tempValue={tempData.matric_no}
             editing={editing}
-            onChangeText={(value) => handleTextChange('matricNo', value)}
+            onChangeText={(value) => handleTextChange('matric_no', value)}
             editable={false}
             helperText="Matric number cannot be changed"
+            theme={theme}
           />
 
-<InfoField 
-  label="Phone No:" 
-  value={profileData.phoneNo}
-  tempValue={tempData.phoneNo}
-  editing={editing}
-  onChangeText={(value) => handleTextChange('phoneNo', value)}
-  editable={true}  // This allows editing
-  keyboardType="phone-pad"
-/>
+          <InfoField 
+            label="Phone No:" 
+            value={userProfile?.phone_number || ""}
+            tempValue={tempData.phone_number}
+            editing={editing}
+            onChangeText={(value) => handleTextChange('phone_number', value)}
+            editable={true}
+            keyboardType="phone-pad"
+            theme={theme}
+          />
           
           <InfoField 
             label="Email:" 
-            value={profileData.email}
+            value={userProfile?.email || ""}
             tempValue={tempData.email}
             editing={editing}
             onChangeText={(value) => handleTextChange('email', value)}
             editable={false}
             keyboardType="email-address"
-            helperText="School email address cannot be changed"
+            helperText="Email cannot be changed"
+            theme={theme}
           />
 
           <InfoField 
             label="Course:" 
-            value={profileData.course}
+            value={userProfile?.course || ""}
             tempValue={tempData.course}
             editing={editing}
             onChangeText={(value) => handleTextChange('course', value)}
-            editable={false}
-            helperText="Contact admin to change course"
+            editable={!userProfile?.course}
+            helperText={userProfile?.course ? "Contact admin to change course" : null}
+            theme={theme}
           />
 
           <InfoField 
             label="Department:" 
-            value={profileData.department}
+            value={userProfile?.department || ""}
             tempValue={tempData.department}
             editing={editing}
             onChangeText={(value) => handleTextChange('department', value)}
-            editable={false}
-            helperText="Contact admin to change department"
+            editable={!userProfile?.department}
+            helperText={userProfile?.department ? "Contact admin to change department" : null}
+            theme={theme}
           />
           
           <InfoField 
             label="Level:" 
-            value={profileData.level}
+            value={userProfile?.level || ""}
             tempValue={tempData.level}
             editing={editing}
             onChangeText={(value) => handleTextChange('level', value)}
-            editable={false}
-            helperText="Level is updated by administration"
+            editable={!userProfile?.level}
+            helperText={userProfile?.level ? "Level is updated by administration" : null}
+            theme={theme}
           />
 
-<InfoField 
-  label="Hall of Residence:" 
-  value={profileData.Hall}
-  tempValue={tempData.Hall}
-  editing={editing}
-  onChangeText={(value) => handleTextChange('Hall', value)}
-  editable={true}  // This allows editing
-/>
+          <InfoField 
+            label="Hall of Residence:" 
+            value={userProfile?.hall || ""}
+            tempValue={tempData.hall}
+            editing={editing}
+            onChangeText={(value) => handleTextChange('hall', value)}
+            editable={true}
+            theme={theme}
+          />
         </View>
         
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Safety Status</Text>
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Safety Status</Text>
           <View style={styles.statusContainer}>
             <View style={styles.statusItem}>
               <View style={[styles.statusIcon, { backgroundColor: '#4CAF50' }]}>
                 <FontAwesome name="check" size={16} color="white" />
               </View>
-              <Text style={styles.statusText}>Emergency Contacts Verified</Text>
+              <Text style={[styles.statusText, { color: theme.text }]}>Emergency Contacts Verified</Text>
             </View>
             <View style={styles.statusItem}>
               <View style={[styles.statusIcon, { backgroundColor: '#4CAF50' }]}>
                 <FontAwesome name="check" size={16} color="white" />
               </View>
-              <Text style={styles.statusText}>Campus ID Card Active</Text>
+              <Text style={[styles.statusText, { color: theme.text }]}>Campus ID Card Active</Text>
             </View>
             <View style={styles.statusItem}>
               <View style={[styles.statusIcon, { backgroundColor: '#FFC107' }]}>
                 <Feather name="clock" size={16} color="white" />
               </View>
-              <Text style={styles.statusText}>Safety Training: 1 Module Pending</Text>
+              <Text style={[styles.statusText, { color: theme.text }]}>Safety Training: 1 Module Pending</Text>
             </View>
             <View style={styles.statusItem}>
               <View style={[styles.statusIcon, { backgroundColor: '#4CAF50' }]}>
                 <FontAwesome name="check" size={16} color="white" />
               </View>
-              <Text style={styles.statusText}>Location Services Enabled</Text>
-            </View>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusIcon, { backgroundColor: '#F44336' }]}>
-                <FontAwesome name="times" size={16} color="white" />
-              </View>
-              <Text style={styles.statusText}>Dormitory Security Badge Missing</Text>
+              <Text style={[styles.statusText, { color: theme.text }]}>Location Services Enabled</Text>
             </View>
           </View>
         </View>
         
         <View style={styles.footer}>
-          <Text style={styles.versionText}>App Version 1.0.5</Text>
+          <Text style={[styles.versionText, { color: theme.secondaryText }]}>App Version 1.0.5</Text>
         </View>
       </ScrollView>
       
@@ -431,24 +519,30 @@ const [profileData, setProfileData] = useState({
           activeOpacity={1}
           onPress={() => setImagePickerVisible(false)}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Change Profile Picture</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Change Profile Picture</Text>
             
-            <TouchableOpacity style={styles.modalOption} onPress={() => pickImage('camera')}>
-              <Ionicons name="camera" size={24} color="#333" />
-              <Text style={styles.modalOptionText}>Take a photo</Text>
+            <TouchableOpacity 
+              style={[styles.modalOption, { borderBottomColor: theme.border }]} 
+              onPress={() => pickImage('camera')}
+            >
+              <Ionicons name="camera" size={24} color={theme.accent} />
+              <Text style={[styles.modalOptionText, { color: theme.text }]}>Take a photo</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.modalOption} onPress={() => pickImage('gallery')}>
-              <Ionicons name="images" size={24} color="#333" />
-              <Text style={styles.modalOptionText}>Choose from gallery</Text>
+            <TouchableOpacity 
+              style={[styles.modalOption, { borderBottomColor: theme.border }]} 
+              onPress={() => pickImage('gallery')}
+            >
+              <Ionicons name="images" size={24} color={theme.accent} />
+              <Text style={[styles.modalOptionText, { color: theme.text }]}>Choose from gallery</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.modalCancelButton}
               onPress={() => setImagePickerVisible(false)}
             >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={[styles.modalCancelText, { color: theme.danger }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -466,28 +560,38 @@ const InfoField = ({
   onChangeText, 
   editable = true,
   helperText = null,
-  keyboardType = "default" 
+  keyboardType = "default",
+  theme
 }) => {
   return (
     <View style={styles.info}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
       <View style={styles.valueContainer}>
         {editing ? (
           <TextInput 
             style={[
               styles.input, 
-              !editable && styles.disabledInput
+              !editable && styles.disabledInput,
+              { 
+                color: theme.text, 
+                borderBottomColor: editable ? "#FFD700" : theme.border,
+                backgroundColor: !editable ? (theme.isDark ? '#333' : '#f0f0f0') : 'transparent'
+              }
             ]} 
             value={tempValue} 
             onChangeText={onChangeText} 
             editable={editable}
             keyboardType={keyboardType}
+            placeholderTextColor={theme.secondaryText}
+            placeholder={`Enter ${label.toLowerCase().replace(':', '')}`}
           />
         ) : (
-          <Text style={styles.value}>{value}</Text>
+          <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+            {value || 'Not specified'}
+          </Text>
         )}
         {helperText && editing && (
-          <Text style={styles.helperText}>{helperText}</Text>
+          <Text style={[styles.helperText, { color: theme.secondaryText }]}>{helperText}</Text>
         )}
       </View>
     </View>
@@ -496,8 +600,7 @@ const InfoField = ({
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
-    backgroundColor: "white"
+    flex: 1
   },
   
   // Loading overlay
@@ -507,7 +610,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000
@@ -520,12 +622,13 @@ const styles = StyleSheet.create({
     alignItems: "center", 
     marginTop: 40,
     paddingHorizontal: 20,
-    marginBottom: 20
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    paddingBottom: 10
   },
   title: { 
     fontSize: 20, 
-    fontWeight: "bold", 
-    color: "#FFD700" 
+    fontWeight: "bold"
   },
 
   // Dropdown menu
@@ -533,7 +636,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 40,
     right: 10,
-    backgroundColor: "white",
     borderRadius: 8,
     shadowColor: "#000",
     shadowOpacity: 0.2,
@@ -541,18 +643,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     width: 150,
-    zIndex: 100
+    zIndex: 100,
+    borderWidth: 1
   },
   dropdownItem: { 
     flexDirection: "row", 
     alignItems: "center", 
     padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0"
+    borderBottomWidth: 1
   },
   dropdownText: { 
     marginLeft: 10, 
-    color: "black",
     fontSize: 14
   },
 
@@ -590,14 +691,12 @@ const styles = StyleSheet.create({
   profileRole: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
     marginBottom: 20
   },
 
   // Details section
   detailsContainer: { 
     marginTop: 10,
-    backgroundColor: "#f9f9f9",
     borderRadius: 12,
     padding: 20,
     marginHorizontal: 20,
@@ -615,8 +714,7 @@ const styles = StyleSheet.create({
   },
   detailsTitle: { 
     fontSize: 18, 
-    fontWeight: "bold",
-    color: "#333"
+    fontWeight: "bold"
   },
   actionButtons: {
     flexDirection: 'row',
@@ -645,7 +743,7 @@ const styles = StyleSheet.create({
     padding: 6
   },
   cancelButtonText: {
-    color: '#666'
+    fontWeight: '500'
   },
 
   // Info fields
@@ -655,7 +753,6 @@ const styles = StyleSheet.create({
   label: { 
     fontWeight: "bold", 
     fontSize: 14,
-    color: "#666",
     marginBottom: 5
   },
   valueContainer: {
@@ -663,27 +760,20 @@ const styles = StyleSheet.create({
   },
   value: { 
     fontSize: 16,
-    color: "#333",
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee"
+    borderBottomWidth: 1
   },
   input: {
     fontSize: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#FFD700",
-    paddingVertical: 8,
-    color: "#333"
+    paddingVertical: 8
   },
   disabledInput: {
-    backgroundColor: "#f0f0f0",
-    color: "#999",
     borderRadius: 4,
     paddingHorizontal: 5
   },
   helperText: {
     fontSize: 12,
-    color: "#999",
     marginTop: 3,
     fontStyle: "italic"
   },
@@ -692,7 +782,6 @@ const styles = StyleSheet.create({
   sectionContainer: {
     marginTop: 25,
     marginHorizontal: 20,
-    backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
     shadowColor: "#000",
@@ -704,8 +793,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 15,
-    color: "#333"
+    marginBottom: 15
   },
   statusContainer: {
     gap: 12
@@ -723,8 +811,7 @@ const styles = StyleSheet.create({
     marginRight: 10
   },
   statusText: {
-    fontSize: 14,
-    color: '#333'
+    fontSize: 14
   },
   
   // Modal styles
@@ -734,7 +821,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end'
   },
   modalContent: {
-    backgroundColor: 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20
@@ -749,8 +835,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0'
+    borderBottomWidth: 1
   },
   modalOptionText: {
     marginLeft: 15,
@@ -763,7 +848,6 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 16,
-    color: 'red',
     fontWeight: '600'
   },
   
@@ -774,7 +858,6 @@ const styles = StyleSheet.create({
     marginTop: 10
   },
   versionText: {
-    color: '#999',
     fontSize: 12
   }
 });

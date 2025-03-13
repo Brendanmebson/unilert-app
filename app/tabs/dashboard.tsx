@@ -14,6 +14,8 @@ import {
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
 
 // Get screen dimensions for responsive design
 const { width } = Dimensions.get("window");
@@ -22,23 +24,13 @@ export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const { theme, isDark, toggleTheme } = useTheme();
+  const { userProfile, signOut } = useAuth();
+  
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const userName = "Emmanuel";
-  const [alerts, setAlerts] = useState([
-    {
-      id: 1,
-      message: "Emergency drill scheduled for tomorrow at 10 AM.",
-      time: "2 hours ago",
-      urgent: true
-    },
-    {
-      id: 2,
-      message: "Lost item reported: A black backpack found near the cafeteria. Claim at the security office.",
-      time: "Now",
-      urgent: false
-    }
-  ]);
+  const userName = userProfile?.full_name || "User";
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Safety Tips Carousel
   const safetyTips = [
@@ -74,37 +66,8 @@ export default function Dashboard() {
     }
   ];
   
-  // Campus Safety Updates - now as a list
-  const safetyUpdates = [
-    {
-      id: 1,
-      title: "New Security Gates",
-      description: "New security gates have been installed at all campus entrances with 24/7 monitoring.",
-      icon: "shield-outline",
-      date: "March 24, 2025"
-    },
-    {
-      id: 2,
-      title: "Emergency Drills",
-      description: "Monthly emergency drills scheduled to ensure preparedness. Next drill: April 10th.",
-      icon: "fitness-outline",
-      date: "March 22, 2025"
-    },
-    {
-      id: 3,
-      title: "Safety App Update",
-      description: "The Unilert app has been updated with new features. Please update your app to the latest version.",
-      icon: "refresh-outline",
-      date: "March 20, 2025"
-    },
-    {
-      id: 4,
-      title: "CCTV Expansion",
-      description: "CCTV coverage expanded to include all walkways and common areas for enhanced security.",
-      icon: "videocam-outline",
-      date: "March 18, 2025"
-    }
-  ];
+  // Campus Safety Updates
+  const [safetyUpdates, setSafetyUpdates] = useState([]);
   
   // Carousel references and state
   const tipsCarouselRef = useRef(null);
@@ -112,6 +75,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     updateGreeting();
+    fetchAlerts();
+    fetchSafetyUpdates();
   }, []);
   
   // Auto-scroll effect for tips carousel
@@ -141,6 +106,115 @@ export default function Dashboard() {
     }
   };
 
+  const fetchAlerts = async () => {
+    try {
+      setLoading(true);
+      // Fetch alerts from Supabase
+      const { data, error } = await supabase
+        .from('alerts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (error) throw error;
+      
+      if (data) {
+        setAlerts(data.map(alert => ({
+          id: alert.id,
+          message: alert.message,
+          time: formatTimeAgo(alert.created_at),
+          date: new Date(alert.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          urgent: alert.is_urgent
+        })));
+      }
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+      // Fallback to static data if the fetch fails
+      setAlerts([
+        {
+          id: 1,
+          message: "Emergency drill scheduled for tomorrow at 10 AM.",
+          time: "2 hours ago",
+          date: "March 24, 2025",
+          urgent: true
+        },
+        {
+          id: 2,
+          message: "Lost item reported: A black backpack found near the cafeteria. Claim at the security office.",
+          time: "",
+          date: "March 17, 2025",
+          urgent: false
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSafetyUpdates = async () => {
+    try {
+      // Fetch safety updates from Supabase
+      const { data, error } = await supabase
+        .from('safety_updates')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(4);
+      
+      if (error) throw error;
+      
+      if (data) {
+        setSafetyUpdates(data.map(update => ({
+          id: update.id,
+          title: update.title,
+          description: update.description,
+          icon: update.icon || "shield-outline",
+          date: new Date(update.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        })));
+      }
+    } catch (error) {
+      console.error("Error fetching safety updates:", error);
+      // Fallback to static data
+      setSafetyUpdates([
+        {
+          id: 1,
+          title: "New Security Gates",
+          description: "New security gates have been installed at all campus entrances with 24/7 monitoring.",
+          icon: "shield-outline",
+          date: "March 24, 2025"
+        },
+        {
+          id: 2,
+          title: "Emergency Drills",
+          description: "Monthly emergency drills scheduled to ensure preparedness. Next drill: April 10th.",
+          icon: "fitness-outline",
+          date: "March 22, 2025"
+        }
+      ]);
+    }
+  };
+
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'Just now';
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+    
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+    
+    return '';
+  };
+
   // Close dropdown when clicking outside
   const handlePressOutside = () => {
     if (showDropdown) {
@@ -166,7 +240,15 @@ export default function Dashboard() {
         { text: "Cancel", style: "cancel" },
         { 
           text: "Logout", 
-          onPress: () => router.push("../login"),
+          onPress: async () => {
+            try {
+              await signOut();
+              router.push("../login");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
+            }
+          },
           style: "destructive"
         }
       ]
@@ -760,48 +842,49 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 10,
   },
-  navbar: { 
-    flexDirection: "row", 
-    justifyContent: "space-around", 
-    alignItems: "center", 
-    paddingVertical: 8, 
-    position: "absolute", 
-    bottom: 0, 
-    left: 0, 
-    right: 0, 
-    borderTopWidth: 1,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  navText: {
-    fontSize: 12,
-    marginTop: 2
-  },
-  sosButton: {
-    backgroundColor: "#FF3B30",
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 5,
-    shadowColor: "#FF3B30",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
-    borderWidth: 3,
-    borderColor: "#FFF"
-  },
-  sosText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FF3B30"
-  }
+// Completion of Dashboard styles:
+navbar: { 
+  flexDirection: "row", 
+  justifyContent: "space-around", 
+  alignItems: "center", 
+  paddingVertical: 8, 
+  position: "absolute", 
+  bottom: 0, 
+  left: 0, 
+  right: 0, 
+  borderTopWidth: 1,
+  shadowOffset: { width: 0, height: -2 },
+  shadowOpacity: 0.05,
+  shadowRadius: 3,
+  elevation: 5,
+},
+navItem: {
+  alignItems: "center",
+  justifyContent: "center"
+},
+navText: {
+  fontSize: 12,
+  marginTop: 2
+},
+sosButton: {
+  backgroundColor: "#FF3B30",
+  width: 60,
+  height: 60,
+  borderRadius: 30,
+  justifyContent: "center",
+  alignItems: "center",
+  marginBottom: 5,
+  shadowColor: "#FF3B30",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 5,
+  elevation: 8,
+  borderWidth: 3,
+  borderColor: "#FFF"
+},
+sosText: {
+  fontSize: 12,
+  fontWeight: "700",
+  color: "#FF3B30"
+}
 });

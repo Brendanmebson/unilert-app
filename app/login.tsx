@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { supabase } from "../lib/supabase";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -19,7 +22,7 @@ export default function LoginScreen() {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     // Validate email before proceeding
     if (!email || !email.includes("@") || !email.toLowerCase().endsWith(".edu.ng")) {
       setEmailError("Please use a valid school email (.edu.ng)");
@@ -32,8 +35,59 @@ export default function LoginScreen() {
       return;
     }
     
-    // If validation passes, navigate to dashboard
-    router.replace("/tabs/dashboard");
+    setLoading(true);
+    
+    try {
+      // Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+      
+      if (error) {
+        // Check for email confirmation error
+        if (error.message.includes("Email not confirmed")) {
+          Alert.alert(
+            "Email Not Verified",
+            "Please check your email and click the verification link before logging in.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { 
+                text: "Resend Email", 
+                onPress: async () => {
+                  try {
+                    const { error: resendError } = await supabase.auth.resend({
+                      type: 'signup',
+                      email: email,
+                    });
+                    
+                    if (resendError) {
+                      Alert.alert("Error", resendError.message);
+                    } else {
+                      Alert.alert("Success", "Verification email resent. Please check your inbox.");
+                    }
+                  } catch (e) {
+                    Alert.alert("Error", "Failed to resend verification email");
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          // Handle other errors
+          throw error;
+        }
+      } else {
+        // Login successful
+        console.log("Login successful", data);
+        router.replace("/tabs/dashboard");
+      }
+    } catch (error) {
+      console.error("Login error:", error.message);
+      Alert.alert("Login Failed", error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -59,6 +113,8 @@ export default function LoginScreen() {
           placeholderTextColor="#555"
           onChangeText={validateEmail}
           keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
         />
         {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
         
@@ -68,14 +124,26 @@ export default function LoginScreen() {
           placeholderTextColor="#555"
           secureTextEntry
           onChangeText={setPassword}
+          value={password}
+          autoCapitalize="none"
         />
 
         {/* Login Button */}
         <TouchableOpacity 
           style={styles.button} 
           onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>Log in</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Log in</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Forgot Password */}
+        <TouchableOpacity style={styles.forgotContainer}>
+          <Text style={styles.forgotText}>Forgot Password?</Text>
         </TouchableOpacity>
 
         <Text style={styles.orText}>- Or sign in with -</Text>
@@ -144,12 +212,11 @@ const styles = StyleSheet.create({
     padding: 30,
     borderRadius: 15,
     alignItems: 'center',
-    // Shadow for iOS
+    // Shadow properties
     shadowColor: '#003366',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    // Shadow for Android
     elevation: 8,
   },
   logo: {
@@ -207,6 +274,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  forgotContainer: {
+    marginTop: 15,
+  },
+  forgotText: {
+    color: "#003366",
+    fontSize: 14,
   },
   orText: {
     color: "#555",
