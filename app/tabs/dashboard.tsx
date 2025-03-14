@@ -24,11 +24,14 @@ export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const { theme, isDark, toggleTheme } = useTheme();
-  const { userProfile, signOut } = useAuth();
+  const auth = useAuth();
+  
+  // Add debug logging
+  console.log("Dashboard rendering with userProfile:", auth.userProfile);
   
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const userName = userProfile?.full_name || "User";
+  const userName = auth.userProfile?.full_name || "User";
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -74,10 +77,24 @@ export default function Dashboard() {
   const [activeTipIndex, setActiveTipIndex] = useState(0);
 
   useEffect(() => {
+    // Refresh profile when dashboard loads
+    if (typeof auth.refreshProfile === 'function') {
+      auth.refreshProfile().then(() => {
+        console.log("Profile refreshed on dashboard load");
+      }).catch(err => {
+        console.error("Error refreshing profile:", err);
+      });
+    }
+    
     updateGreeting();
     fetchAlerts();
     fetchSafetyUpdates();
   }, []);
+  
+  // Update greeting whenever userName changes
+  useEffect(() => {
+    updateGreeting();
+  }, [userName]);
   
   // Auto-scroll effect for tips carousel
   useEffect(() => {
@@ -145,6 +162,7 @@ export default function Dashboard() {
           date: "March 17, 2025",
           urgent: false
         }
+        
       ]);
     } finally {
       setLoading(false);
@@ -242,7 +260,7 @@ export default function Dashboard() {
           text: "Logout", 
           onPress: async () => {
             try {
-              await signOut();
+              await auth.signOut();
               router.push("../login");
             } catch (error) {
               console.error("Logout error:", error);
@@ -842,49 +860,48 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 10,
   },
-// Completion of Dashboard styles:
-navbar: { 
-  flexDirection: "row", 
-  justifyContent: "space-around", 
-  alignItems: "center", 
-  paddingVertical: 8, 
-  position: "absolute", 
-  bottom: 0, 
-  left: 0, 
-  right: 0, 
-  borderTopWidth: 1,
-  shadowOffset: { width: 0, height: -2 },
-  shadowOpacity: 0.05,
-  shadowRadius: 3,
-  elevation: 5,
-},
-navItem: {
-  alignItems: "center",
-  justifyContent: "center"
-},
-navText: {
-  fontSize: 12,
-  marginTop: 2
-},
-sosButton: {
-  backgroundColor: "#FF3B30",
-  width: 60,
-  height: 60,
-  borderRadius: 30,
-  justifyContent: "center",
-  alignItems: "center",
-  marginBottom: 5,
-  shadowColor: "#FF3B30",
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 5,
-  elevation: 8,
-  borderWidth: 3,
-  borderColor: "#FFF"
-},
-sosText: {
-  fontSize: 12,
-  fontWeight: "700",
-  color: "#FF3B30"
-}
+  navbar: { 
+    flexDirection: "row", 
+    justifyContent: "space-around", 
+    alignItems: "center", 
+    paddingVertical: 8, 
+    position: "absolute", 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    borderTopWidth: 1,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  navItem: {
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  navText: {
+    fontSize: 12,
+    marginTop: 2
+  },
+  sosButton: {
+    backgroundColor: "#FF3B30",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 5,
+    shadowColor: "#FF3B30",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFF"
+  },
+  sosText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FF3B30"
+  }
 });

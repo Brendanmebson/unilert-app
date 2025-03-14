@@ -60,6 +60,7 @@ export default function SignupScreen() {
     setLoading(true);
     
     try {
+      console.log("Starting signup process for: ", email);
       // 1. Create the user in Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -71,7 +72,12 @@ export default function SignupScreen() {
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Signup error:", error);
+        throw error;
+      }
+      
+      console.log("Auth signup response:", data);
       
       // 2. Check if email confirmation is needed
       if (data?.user?.identities?.length === 0) {
@@ -86,6 +92,7 @@ export default function SignupScreen() {
       // 3. Create a profile record in Supabase
       if (data?.user) {
         try {
+          console.log("Creating profile for user ID:", data.user.id);
           const { error: profileError } = await supabase
             .from('profiles')
             .insert([
@@ -101,6 +108,8 @@ export default function SignupScreen() {
           if (profileError) {
             console.error("Profile creation error:", profileError);
             // Continue anyway since the user was created
+          } else {
+            console.log("Profile created successfully");
           }
         } catch (profileErr) {
           console.error("Error creating profile:", profileErr);

@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Ionicons, Entypo, MaterialIcons, Feather, FontAwesome } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -21,9 +22,13 @@ import { supabase } from "../../lib/supabase";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
+  const router = useRouter();
   const { theme, isDark } = useTheme();
-  const { userProfile, updateProfile, signOut, refreshProfile } = useAuth();
+  const auth = useAuth();
   
+  // Add this debug log
+  console.log("Profile screen rendering with userProfile:", auth.userProfile);
+
   const [menuVisible, setMenuVisible] = useState(false);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -46,25 +51,38 @@ export default function ProfileScreen() {
   
   // Load user data whenever userProfile changes
   useEffect(() => {
-    if (userProfile) {
+    if (auth.userProfile) {
+      console.log("Updating profile form with userProfile data:", auth.userProfile);
       setTempData({
-        full_name: userProfile.full_name || "",
-        matric_no: userProfile.matric_no || "",
-        phone_number: userProfile.phone_number || "",
-        course: userProfile.course || "",
-        department: userProfile.department || "",
-        email: userProfile.email || "",
-        level: userProfile.level || "",
-        hall: userProfile.hall || "",
-        profile_image_url: userProfile.profile_image_url || "https://via.placeholder.com/100"
+        full_name: auth.userProfile.full_name || "",
+        matric_no: auth.userProfile.matric_no || "",
+        phone_number: auth.userProfile.phone_number || "",
+        course: auth.userProfile.course || "",
+        department: auth.userProfile.department || "",
+        email: auth.userProfile.email || "",
+        level: auth.userProfile.level || "",
+        hall: auth.userProfile.hall || "",
+        profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
       });
     }
-  }, [userProfile]);
+  }, [auth.userProfile]);
   
   // Request permissions on component mount
   useEffect(() => {
     requestPermissions();
   }, []);
+  
+  // Add refresh on screen focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log("Profile screen focused, refreshing profile");
+      if (typeof auth.refreshProfile === 'function') {
+        auth.refreshProfile();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
   
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
@@ -93,6 +111,8 @@ export default function ProfileScreen() {
       const response = await fetch(uri);
       const blob = await response.blob();
       
+      console.log("Uploading image to Supabase storage...");
+      
       // Upload the image to Supabase Storage
       const { data, error } = await supabase.storage
         .from('profile-images')
@@ -108,6 +128,7 @@ export default function ProfileScreen() {
         .from('profile-images')
         .getPublicUrl(filePath);
       
+      console.log("Image uploaded successfully, URL:", publicUrlData.publicUrl);
       return publicUrlData.publicUrl;
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -130,18 +151,18 @@ export default function ProfileScreen() {
   };
   
   const handleCancel = () => {
-    if (userProfile) {
+    if (auth.userProfile) {
       // Reset to current profile data
       setTempData({
-        full_name: userProfile.full_name || "",
-        matric_no: userProfile.matric_no || "",
-        phone_number: userProfile.phone_number || "",
-        course: userProfile.course || "",
-        department: userProfile.department || "",
-        email: userProfile.email || "",
-        level: userProfile.level || "",
-        hall: userProfile.hall || "",
-        profile_image_url: userProfile.profile_image_url || "https://via.placeholder.com/100"
+        full_name: auth.userProfile.full_name || "",
+        matric_no: auth.userProfile.matric_no || "",
+        phone_number: auth.userProfile.phone_number || "",
+        course: auth.userProfile.course || "",
+        department: auth.userProfile.department || "",
+        email: auth.userProfile.email || "",
+        level: auth.userProfile.level || "",
+        hall: auth.userProfile.hall || "",
+        profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
       });
     }
     setEditing(false);
@@ -162,6 +183,7 @@ export default function ProfileScreen() {
       
       // Check if image needs to be uploaded (if it's a local URI)
       if (tempData.profile_image_url && !tempData.profile_image_url.startsWith('http')) {
+        console.log("Uploading new profile image from local URI");
         const uploadedUrl = await uploadImage(tempData.profile_image_url);
         if (uploadedUrl) {
           imageUrl = uploadedUrl;
@@ -177,17 +199,21 @@ export default function ProfileScreen() {
       };
       
       // Only include fields that can be edited by the user
-      if (!userProfile.course) updates.course = tempData.course || null;
-      if (!userProfile.department) updates.department = tempData.department || null;
-      if (!userProfile.level) updates.level = tempData.level || null;
+      if (!auth.userProfile.course) updates.course = tempData.course || null;
+      if (!auth.userProfile.department) updates.department = tempData.department || null;
+      if (!auth.userProfile.level) updates.level = tempData.level || null;
+      
+      console.log("Saving profile with updates:", updates);
       
       // Update profile in Supabase
-      const { error } = await updateProfile(updates);
+      const result = await auth.updateProfile(updates);
       
-      if (error) throw error;
+      if (result.error) throw result.error;
       
       // Refresh the profile data
-      await refreshProfile();
+      if (typeof auth.refreshProfile === 'function') {
+        await auth.refreshProfile();
+      }
       
       setEditing(false);
       Alert.alert("Success", "Profile updated successfully");
@@ -222,6 +248,7 @@ export default function ProfileScreen() {
       }
       
       if (!result.canceled) {
+        console.log("Image picked successfully");
         // Update the temporary data with the image URI
         setTempData({
           ...tempData,
@@ -233,8 +260,12 @@ export default function ProfileScreen() {
           const uploadedUrl = await uploadImage(result.assets[0].uri);
           if (uploadedUrl) {
             // Update profile with new image URL
-            await updateProfile({ profile_image_url: uploadedUrl });
-            await refreshProfile();
+            await auth.updateProfile({ profile_image_url: uploadedUrl });
+            
+            if (typeof auth.refreshProfile === 'function') {
+              await auth.refreshProfile();
+            }
+            
             Alert.alert("Success", "Profile picture updated successfully");
           }
         }
@@ -262,8 +293,9 @@ export default function ProfileScreen() {
           text: "Logout", 
           onPress: async () => {
             try {
-              await signOut();
-              navigation.replace("login");
+              console.log("Logging out...");
+              await auth.signOut();
+              router.replace("/login");
             } catch (error) {
               console.error("Logout error:", error);
               Alert.alert("Error", "Failed to logout. Please try again.");
@@ -293,7 +325,7 @@ export default function ProfileScreen() {
       )}
       
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
@@ -344,7 +376,7 @@ export default function ProfileScreen() {
             source={{ 
               uri: editing 
                 ? tempData.profile_image_url 
-                : (userProfile?.profile_image_url || "https://via.placeholder.com/100") 
+                : (auth.userProfile?.profile_image_url || "https://via.placeholder.com/100") 
             }} 
             style={styles.profileImage} 
           />
@@ -357,7 +389,7 @@ export default function ProfileScreen() {
         </View>
         
         <Text style={[styles.profileName, { color: theme.text }]}>
-          {editing ? tempData.full_name : (userProfile?.full_name || "User")}
+          {editing ? tempData.full_name : (auth.userProfile?.full_name || "User")}
         </Text>
         <Text style={[styles.profileRole, { color: theme.secondaryText }]}>Student</Text>
         
@@ -386,7 +418,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="FULL NAME:" 
-            value={userProfile?.full_name || ""}
+            value={auth.userProfile?.full_name || ""}
             tempValue={tempData.full_name}
             editing={editing}
             onChangeText={(value) => handleTextChange('full_name', value)}
@@ -396,7 +428,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Matric No:" 
-            value={userProfile?.matric_no || ""}
+            value={auth.userProfile?.matric_no || ""}
             tempValue={tempData.matric_no}
             editing={editing}
             onChangeText={(value) => handleTextChange('matric_no', value)}
@@ -407,7 +439,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Phone No:" 
-            value={userProfile?.phone_number || ""}
+            value={auth.userProfile?.phone_number || ""}
             tempValue={tempData.phone_number}
             editing={editing}
             onChangeText={(value) => handleTextChange('phone_number', value)}
@@ -418,7 +450,7 @@ export default function ProfileScreen() {
           
           <InfoField 
             label="Email:" 
-            value={userProfile?.email || ""}
+            value={auth.userProfile?.email || ""}
             tempValue={tempData.email}
             editing={editing}
             onChangeText={(value) => handleTextChange('email', value)}
@@ -430,40 +462,40 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Course:" 
-            value={userProfile?.course || ""}
+            value={auth.userProfile?.course || ""}
             tempValue={tempData.course}
             editing={editing}
             onChangeText={(value) => handleTextChange('course', value)}
-            editable={!userProfile?.course}
-            helperText={userProfile?.course ? "Contact admin to change course" : null}
+            editable={!auth.userProfile?.course}
+            helperText={auth.userProfile?.course ? "Contact admin to change course" : null}
             theme={theme}
           />
 
           <InfoField 
             label="Department:" 
-            value={userProfile?.department || ""}
+            value={auth.userProfile?.department || ""}
             tempValue={tempData.department}
             editing={editing}
             onChangeText={(value) => handleTextChange('department', value)}
-            editable={!userProfile?.department}
-            helperText={userProfile?.department ? "Contact admin to change department" : null}
+            editable={!auth.userProfile?.department}
+            helperText={auth.userProfile?.department ? "Contact admin to change department" : null}
             theme={theme}
           />
           
           <InfoField 
             label="Level:" 
-            value={userProfile?.level || ""}
+            value={auth.userProfile?.level || ""}
             tempValue={tempData.level}
             editing={editing}
             onChangeText={(value) => handleTextChange('level', value)}
-            editable={!userProfile?.level}
-            helperText={userProfile?.level ? "Level is updated by administration" : null}
+            editable={!auth.userProfile?.level}
+            helperText={auth.userProfile?.level ? "Level is updated by administration" : null}
             theme={theme}
           />
 
           <InfoField 
             label="Hall of Residence:" 
-            value={userProfile?.hall || ""}
+            value={auth.userProfile?.hall || ""}
             tempValue={tempData.hall}
             editing={editing}
             onChangeText={(value) => handleTextChange('hall', value)}
@@ -814,50 +846,50 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end'
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center'
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1
-  },
-  modalOptionText: {
-    marginLeft: 15,
-    fontSize: 16
-  },
-  modalCancelButton: {
-    padding: 15,
-    alignItems: 'center',
-    marginTop: 10
-  },
-  modalCancelText: {
-    fontSize: 16,
-    fontWeight: '600'
-  },
-  
-  // Footer
-  footer: {
-    alignItems: 'center',
-    padding: 20,
-    marginTop: 10
-  },
-  versionText: {
-    fontSize: 12
-  }
+ // Modal styles
+ modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  justifyContent: 'flex-end'
+},
+modalContent: {
+  borderTopLeftRadius: 20,
+  borderTopRightRadius: 20,
+  padding: 20
+},
+modalTitle: {
+  fontSize: 18,
+  fontWeight: 'bold',
+  marginBottom: 20,
+  textAlign: 'center'
+},
+modalOption: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 15,
+  borderBottomWidth: 1
+},
+modalOptionText: {
+  marginLeft: 15,
+  fontSize: 16
+},
+modalCancelButton: {
+  padding: 15,
+  alignItems: 'center',
+  marginTop: 10
+},
+modalCancelText: {
+  fontSize: 16,
+  fontWeight: '600'
+},
+
+// Footer
+footer: {
+  alignItems: 'center',
+  padding: 20,
+  marginTop: 10
+},
+versionText: {
+  fontSize: 12
+}
 });

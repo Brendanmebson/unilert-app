@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 // Create context
 const AuthContext = createContext({});
@@ -21,6 +22,12 @@ export const AuthProvider = ({ children }) => {
       console.log(`Supabase auth event: ${event}`);
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      
+      // When user signs in, fetch their profile
+      if (event === 'SIGNED_IN' && newSession?.user) {
+        await fetchProfile(newSession.user.id);
+      }
+      
       setLoading(false);
     });
 
@@ -33,11 +40,21 @@ export const AuthProvider = ({ children }) => {
   async function checkUser() {
     try {
       const { data } = await supabase.auth.getSession();
+      console.log("Session check result:", data.session ? "Found session" : "No session");
+      
       setSession(data.session);
       setUser(data.session?.user ?? null);
       
       if (data.session?.user) {
-        fetchProfile(data.session.user.id);
+        console.log("User found in session, fetching profile for ID:", data.session.user.id);
+        await fetchProfile(data.session.user.id);
+      } else {
+        // Try to load from AsyncStorage if no active session
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          console.log("Found profile in AsyncStorage");
+          setUserProfile(JSON.parse(storedProfile));
+        }
       }
     } catch (error) {
       console.error('Error checking user:', error.message);
@@ -48,6 +65,7 @@ export const AuthProvider = ({ children }) => {
 
   // Fetch user profile
   async function fetchProfile(userId) {
+    console.log("Fetching profile for user ID:", userId);
     try {
       // Load profile from Supabase
       const { data, error } = await supabase
@@ -56,14 +74,30 @@ export const AuthProvider = ({ children }) => {
         .eq('id', userId)
         .single();
         
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase profile fetch error:", error);
+        throw error;
+      }
       
-      setUserProfile(data);
-      // Save profile in AsyncStorage for faster loading
-      await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+      console.log("Profile data received:", data);
+      
+      if (data) {
+        setUserProfile(data);
+        // Save profile in AsyncStorage for faster loading
+        await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+        console.log("Profile saved to AsyncStorage and state");
+        return data;
+      } else {
+        console.log("No profile data returned from Supabase");
+      }
     } catch (error) {
       console.error('Error fetching profile:', error.message);
+      Alert.alert(
+        "Profile Error", 
+        "There was an error fetching your profile. Please try logging in again."
+      );
     }
+    return null;
   }
 
   // Sign out
@@ -74,6 +108,7 @@ export const AuthProvider = ({ children }) => {
       // Clear profile data
       setUserProfile(null);
       await AsyncStorage.removeItem('userProfile');
+      console.log("User signed out and profile cleared");
     } catch (error) {
       console.error('Error signing out:', error.message);
     } finally {
@@ -86,6 +121,8 @@ export const AuthProvider = ({ children }) => {
     try {
       if (!user) throw new Error('No user logged in');
       
+      console.log("Updating profile with:", updates);
+      
       const { data, error } = await supabase
         .from('profiles')
         .update(updates)
@@ -95,6 +132,7 @@ export const AuthProvider = ({ children }) => {
         
       if (error) throw error;
       
+      console.log("Profile updated successfully:", data);
       setUserProfile(data);
       await AsyncStorage.setItem('userProfile', JSON.stringify(data));
       return { success: true };
@@ -102,6 +140,15 @@ export const AuthProvider = ({ children }) => {
       console.error('Error updating profile:', error.message);
       return { success: false, error };
     }
+  }
+
+  // Function to force refresh the profile
+  async function refreshProfile() {
+    if (user) {
+      console.log("Force refreshing profile for user:", user.id);
+      return await fetchProfile(user.id);
+    }
+    return null;
   }
 
   return (
@@ -113,7 +160,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         signOut,
         updateProfile,
-        refreshProfile: () => user && fetchProfile(user.id),
+        refreshProfile
       }}
     >
       {children}

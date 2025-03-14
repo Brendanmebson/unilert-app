@@ -3,13 +3,19 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, Acti
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const auth = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Debug: Check if refreshProfile exists
+  console.log("Auth context contents:", Object.keys(auth));
+  console.log("refreshProfile is available:", typeof auth.refreshProfile === 'function');
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -39,6 +45,7 @@ export default function LoginScreen() {
     
     try {
       // Sign in with Supabase
+      console.log("Attempting to sign in with:", email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
@@ -80,6 +87,17 @@ export default function LoginScreen() {
       } else {
         // Login successful
         console.log("Login successful", data);
+        
+        // Check if refreshProfile exists before calling it
+        if (typeof auth.refreshProfile === 'function') {
+          console.log("Refreshing profile after login");
+          await auth.refreshProfile();
+          console.log("Profile refreshed, navigating to dashboard");
+        } else {
+          console.log("refreshProfile is not available, skipping profile refresh");
+        }
+        
+        // Navigate to dashboard
         router.replace("/tabs/dashboard");
       }
     } catch (error) {
