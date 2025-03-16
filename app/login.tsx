@@ -11,11 +11,9 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Debug: Check if refreshProfile exists
-  console.log("Auth context contents:", Object.keys(auth));
-  console.log("refreshProfile is available:", typeof auth.refreshProfile === 'function');
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -37,17 +35,20 @@ export default function LoginScreen() {
     
     // Check if password is entered
     if (!password) {
-      Alert.alert("Error", "Please enter your password");
+      setPasswordError("Please enter your password");
       return;
+    } else {
+      setPasswordError("");
     }
     
     setLoading(true);
     
     try {
+      console.log("Attempting login with:", email);
+      
       // Sign in with Supabase
-      console.log("Attempting to sign in with:", email);
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
+        email: email.trim(),
         password: password,
       });
       
@@ -65,7 +66,7 @@ export default function LoginScreen() {
                   try {
                     const { error: resendError } = await supabase.auth.resend({
                       type: 'signup',
-                      email: email,
+                      email: email.trim(),
                     });
                     
                     if (resendError) {
@@ -84,17 +85,13 @@ export default function LoginScreen() {
           // Handle other errors
           throw error;
         }
-      } else {
-        // Login successful
-        console.log("Login successful", data);
+      } else if (data?.user) {
+        console.log("Login successful:", data.user.id);
         
-        // Check if refreshProfile exists before calling it
+        // Manually refresh the profile after login
         if (typeof auth.refreshProfile === 'function') {
           console.log("Refreshing profile after login");
           await auth.refreshProfile();
-          console.log("Profile refreshed, navigating to dashboard");
-        } else {
-          console.log("refreshProfile is not available, skipping profile refresh");
         }
         
         // Navigate to dashboard
@@ -136,15 +133,24 @@ export default function LoginScreen() {
         />
         {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
         
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#555"
-          secureTextEntry
-          onChangeText={setPassword}
-          value={password}
-          autoCapitalize="none"
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, passwordError ? styles.inputError : null]}
+            placeholder="Password"
+            placeholderTextColor="#555"
+            secureTextEntry={!showPassword}
+            onChangeText={setPassword}
+            value={password}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity 
+            style={styles.eyeIcon} 
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons name={showPassword ? "eye-off" : "eye"} size={24} color="#555" />
+          </TouchableOpacity>
+        </View>
+        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
         {/* Login Button */}
         <TouchableOpacity 
@@ -263,6 +269,28 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: "#F7F7F7",
     fontSize: 16,
+  },
+  passwordContainer: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: "#F7F7F7",
+    marginBottom: 15,
+  },
+  passwordInput: {
+    flex: 1,
+    height: 55,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    backgroundColor: "transparent",
+  },
+  eyeIcon: {
+    paddingHorizontal: 15,
+    height: 55,
+    justifyContent: "center",
   },
   inputError: {
     borderColor: "#ff3b30",

@@ -31,7 +31,7 @@ export default function Dashboard() {
   
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const userName = auth.userProfile?.full_name || "User";
+  const userName = auth.userProfile?.full_name || "Kamsiyochukwu";
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 

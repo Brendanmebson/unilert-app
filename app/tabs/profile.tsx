@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   View, 
   Text, 
@@ -54,15 +54,28 @@ export default function ProfileScreen() {
     if (auth.userProfile) {
       console.log("Updating profile form with userProfile data:", auth.userProfile);
       setTempData({
-        full_name: auth.userProfile.full_name || "",
-        matric_no: auth.userProfile.matric_no || "",
-        phone_number: auth.userProfile.phone_number || "",
-        course: auth.userProfile.course || "",
-        department: auth.userProfile.department || "",
-        email: auth.userProfile.email || "",
-        level: auth.userProfile.level || "",
-        hall: auth.userProfile.hall || "",
+        full_name: auth.userProfile.full_name || "Mebuge Kamsiyochukwu",
+        matric_no: auth.userProfile.matric_no || "21/1367",
+        phone_number: auth.userProfile.phone_number || "+2348155230994",
+        course: auth.userProfile.course || "Software Engineering",
+        department: auth.userProfile.department || "Software Engineering",
+        email: auth.userProfile.email || "mebuge3151@student.babcock.edu.ng",
+        level: auth.userProfile.level || "400",
+        hall: auth.userProfile.hall || "Emerald Hall",
         profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
+      });
+    } else {
+      // Add mock data when no profile exists
+      setTempData({
+        full_name: "Mebuge Kamsiyochukwu",
+        matric_no: "21/1367",
+        phone_number:"+2348155230994",
+        course: "Software Engineering",
+        department: "Software Engineering",
+        email: "mebuge3151@student.babcock.edu.ng",
+        level: "400",
+        hall: "Emerald Hall",
+        profile_image_url: "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128"
       });
     }
   }, [auth.userProfile]);
@@ -154,15 +167,28 @@ export default function ProfileScreen() {
     if (auth.userProfile) {
       // Reset to current profile data
       setTempData({
-        full_name: auth.userProfile.full_name || "",
-        matric_no: auth.userProfile.matric_no || "",
-        phone_number: auth.userProfile.phone_number || "",
-        course: auth.userProfile.course || "",
-        department: auth.userProfile.department || "",
-        email: auth.userProfile.email || "",
-        level: auth.userProfile.level || "",
-        hall: auth.userProfile.hall || "",
-        profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
+        full_name: auth.userProfile.full_name || "Emmanuel James",
+        matric_no: auth.userProfile.matric_no || "BU/22/CSC/1234",
+        phone_number: auth.userProfile.phone_number || "+2348012345678",
+        course: auth.userProfile.course || "Computer Science",
+        department: auth.userProfile.department || "Computer Science & Mathematics",
+        email: auth.userProfile.email || "emmanuel.james@student.babcock.edu.ng",
+        level: auth.userProfile.level || "300",
+        hall: auth.userProfile.hall || "Nelson Mandela Hall",
+        profile_image_url: auth.userProfile.profile_image_url || "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128"
+      });
+    } else {
+      // Reset to mock data if no profile
+      setTempData({
+        full_name: "Emmanuel James",
+        matric_no: "BU/22/CSC/1234",
+        phone_number: "+2348012345678",
+        course: "Computer Science",
+        department: "Computer Science & Mathematics",
+        email: "emmanuel.james@student.babcock.edu.ng",
+        level: "300",
+        hall: "Nelson Mandela Hall",
+        profile_image_url: "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128"
       });
     }
     setEditing(false);
@@ -199,20 +225,25 @@ export default function ProfileScreen() {
       };
       
       // Only include fields that can be edited by the user
-      if (!auth.userProfile.course) updates.course = tempData.course || null;
-      if (!auth.userProfile.department) updates.department = tempData.department || null;
-      if (!auth.userProfile.level) updates.level = tempData.level || null;
+      if (!auth.userProfile?.course) updates.course = tempData.course || null;
+      if (!auth.userProfile?.department) updates.department = tempData.department || null;
+      if (!auth.userProfile?.level) updates.level = tempData.level || null;
       
       console.log("Saving profile with updates:", updates);
       
       // Update profile in Supabase
-      const result = await auth.updateProfile(updates);
-      
-      if (result.error) throw result.error;
-      
-      // Refresh the profile data
-      if (typeof auth.refreshProfile === 'function') {
-        await auth.refreshProfile();
+      if (auth.updateProfile) {
+        const result = await auth.updateProfile(updates);
+        
+        if (result.error) throw result.error;
+        
+        // Refresh the profile data
+        if (typeof auth.refreshProfile === 'function') {
+          await auth.refreshProfile();
+        }
+      } else {
+        // Handle case where auth.updateProfile might not be available
+        console.log("Profile would be updated with:", updates);
       }
       
       setEditing(false);
@@ -260,10 +291,12 @@ export default function ProfileScreen() {
           const uploadedUrl = await uploadImage(result.assets[0].uri);
           if (uploadedUrl) {
             // Update profile with new image URL
-            await auth.updateProfile({ profile_image_url: uploadedUrl });
-            
-            if (typeof auth.refreshProfile === 'function') {
-              await auth.refreshProfile();
+            if (auth.updateProfile) {
+              await auth.updateProfile({ profile_image_url: uploadedUrl });
+              
+              if (typeof auth.refreshProfile === 'function') {
+                await auth.refreshProfile();
+              }
             }
             
             Alert.alert("Success", "Profile picture updated successfully");
@@ -294,7 +327,9 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               console.log("Logging out...");
-              await auth.signOut();
+              if (auth.signOut) {
+                await auth.signOut();
+              }
               router.replace("/login");
             } catch (error) {
               console.error("Logout error:", error);
@@ -376,7 +411,7 @@ export default function ProfileScreen() {
             source={{ 
               uri: editing 
                 ? tempData.profile_image_url 
-                : (auth.userProfile?.profile_image_url || "https://via.placeholder.com/100") 
+                : (auth.userProfile?.profile_image_url || tempData.profile_image_url || "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128") 
             }} 
             style={styles.profileImage} 
           />
@@ -389,7 +424,7 @@ export default function ProfileScreen() {
         </View>
         
         <Text style={[styles.profileName, { color: theme.text }]}>
-          {editing ? tempData.full_name : (auth.userProfile?.full_name || "User")}
+          {editing ? tempData.full_name : (auth.userProfile?.full_name || tempData.full_name || "User")}
         </Text>
         <Text style={[styles.profileRole, { color: theme.secondaryText }]}>Student</Text>
         
@@ -418,7 +453,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="FULL NAME:" 
-            value={auth.userProfile?.full_name || ""}
+            value={auth.userProfile?.full_name || tempData.full_name || ""}
             tempValue={tempData.full_name}
             editing={editing}
             onChangeText={(value) => handleTextChange('full_name', value)}
@@ -428,7 +463,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Matric No:" 
-            value={auth.userProfile?.matric_no || ""}
+            value={auth.userProfile?.matric_no || tempData.matric_no || ""}
             tempValue={tempData.matric_no}
             editing={editing}
             onChangeText={(value) => handleTextChange('matric_no', value)}
@@ -439,7 +474,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Phone No:" 
-            value={auth.userProfile?.phone_number || ""}
+            value={auth.userProfile?.phone_number || tempData.phone_number || ""}
             tempValue={tempData.phone_number}
             editing={editing}
             onChangeText={(value) => handleTextChange('phone_number', value)}
@@ -450,7 +485,7 @@ export default function ProfileScreen() {
           
           <InfoField 
             label="Email:" 
-            value={auth.userProfile?.email || ""}
+            value={auth.userProfile?.email || tempData.email || ""}
             tempValue={tempData.email}
             editing={editing}
             onChangeText={(value) => handleTextChange('email', value)}
@@ -462,7 +497,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Course:" 
-            value={auth.userProfile?.course || ""}
+            value={auth.userProfile?.course || tempData.course || ""}
             tempValue={tempData.course}
             editing={editing}
             onChangeText={(value) => handleTextChange('course', value)}
@@ -473,7 +508,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Department:" 
-            value={auth.userProfile?.department || ""}
+            value={auth.userProfile?.department || tempData.department || ""}
             tempValue={tempData.department}
             editing={editing}
             onChangeText={(value) => handleTextChange('department', value)}
@@ -484,7 +519,7 @@ export default function ProfileScreen() {
           
           <InfoField 
             label="Level:" 
-            value={auth.userProfile?.level || ""}
+            value={auth.userProfile?.level || tempData.level || ""}
             tempValue={tempData.level}
             editing={editing}
             onChangeText={(value) => handleTextChange('level', value)}
@@ -495,7 +530,7 @@ export default function ProfileScreen() {
 
           <InfoField 
             label="Hall of Residence:" 
-            value={auth.userProfile?.hall || ""}
+            value={auth.userProfile?.hall || tempData.hall || ""}
             tempValue={tempData.hall}
             editing={editing}
             onChangeText={(value) => handleTextChange('hall', value)}
@@ -836,7 +871,6 @@ const styles = StyleSheet.create({
   },
   statusIcon: {
     width: 30,
-    height: 30,
     borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',

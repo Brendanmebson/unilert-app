@@ -18,12 +18,9 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../contexts/AuthContext";
 
 export default function ReportScreen() {
   const router = useRouter();
-  const auth = useAuth();
   
   // Form state
   const [name, setName] = useState("");
@@ -61,13 +58,6 @@ export default function ReportScreen() {
 
   // Check for required permissions on component mount
   useEffect(() => {
-    // Set user info if available
-    if (auth.userProfile) {
-      setName(auth.userProfile.full_name || "");
-      setMatricNo(auth.userProfile.matric_no || "");
-      setPhone(auth.userProfile.phone_number || "");
-    }
-
     (async () => {
       // Check camera permissions
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
@@ -82,7 +72,7 @@ export default function ReportScreen() {
       // Check location permissions
       checkLocationPermission();
     })();
-  }, [auth.userProfile]);
+  }, []);
 
   const checkLocationPermission = async () => {
     try {
@@ -168,7 +158,7 @@ export default function ReportScreen() {
     return isValid;
   };
 
-  // Submit the report to Supabase
+  // Submit the report
   const submitReport = async () => {
     if (!validateForm()) {
       Alert.alert("Error", "Please fill in all required fields correctly");
@@ -178,59 +168,39 @@ export default function ReportScreen() {
     setIsSubmitting(true);
     
     try {
-      // Check if user is authenticated
-      if (!auth.user) {
-        Alert.alert("Error", "You must be logged in to submit a report");
-        setIsSubmitting(false);
-        return;
-      }
+      // Simulate API call with timeout
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Try to get location if not already available
       if (!location && locationPermission === "granted") {
         await getLocation();
       }
       
-      // Upload image if present
-      let imageUrl = null;
-      if (image) {
-        imageUrl = await uploadImage(image);
-      }
-      
-      // Prepare personal info
-      const personalInfo = !anonymous ? {
-        name,
-        matricNo,
-        phone,
-        course,
-        department
-      } : null;
-      
-      // Construct the report data for Supabase
+      // Construct report data
       const reportData = {
-        user_id: auth.user.id,
-        incident_type: incidentType,
-        description: incident,
-        location_latitude: location?.latitude,
-        location_longitude: location?.longitude,
-        location_address: locationAddress,
-        image_url: imageUrl,
-        anonymous: anonymous,
-        personal_info: personalInfo ? JSON.stringify(personalInfo) : null
+        anonymous,
+        incidentType,
+        incident,
+        timestamp: new Date().toISOString(),
+        hasImage: !!image,
+        location: location ? {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          address: locationAddress
+        } : null
       };
       
-      console.log("Submitting report to Supabase:", reportData);
-      
-      // Insert into Supabase
-      const { data, error } = await supabase
-        .from('incidents')
-        .insert([reportData]);
-      
-      if (error) {
-        console.error("Supabase error:", error);
-        throw error;
+      if (!anonymous) {
+        reportData.personalInfo = {
+          name,
+          matricNo,
+          phone,
+          course,
+          department
+        };
       }
       
-      console.log("Report submitted successfully:", data);
+      console.log("Report submitted:", reportData);
       
       // Show success message
       Alert.alert(
@@ -246,8 +216,8 @@ export default function ReportScreen() {
         }]
       );
     } catch (error) {
-      console.error("Submission error:", error);
       Alert.alert("Error", "Failed to submit report. Please try again.");
+      console.error("Submission error:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -255,6 +225,11 @@ export default function ReportScreen() {
 
   // Reset the form
   const resetForm = () => {
+    setName("");
+    setMatricNo("");
+    setPhone("");
+    setCourse("");
+    setDepartment("");
     setIncident("");
     setIncidentType("");
     setImage(null);
@@ -263,50 +238,6 @@ export default function ReportScreen() {
     setAnonymous(false);
     setFormErrors({});
     setShowIncidentTypeError(false);
-  };
-
-  // Upload image to Supabase storage
-  const uploadImage = async (uri) => {
-    try {
-      console.log("Starting image upload...");
-      // Get the file name from the URI
-      const fileName = uri.split('/').pop();
-      // Get the file extension
-      const fileExt = fileName.split('.').pop();
-      // Create a unique file name to prevent overwriting
-      const filePath = `incident-reports/${Date.now()}.${fileExt}`;
-      
-      // Convert the image to a blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      console.log("Uploading to Supabase storage path:", filePath);
-      
-      // Upload the image to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('incident-reports')
-        .upload(filePath, blob, {
-          contentType: `image/${fileExt}`,
-          upsert: true
-        });
-      
-      if (error) {
-        console.error("Storage upload error:", error);
-        throw error;
-      }
-      
-      // Get the public URL of the uploaded image
-      const { data: publicUrlData } = supabase.storage
-        .from('incident-reports')
-        .getPublicUrl(filePath);
-      
-      console.log("Image uploaded, public URL:", publicUrlData.publicUrl);
-      return publicUrlData.publicUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      Alert.alert("Warning", "Failed to upload image, but your report will be submitted without the image.");
-      return null;
-    }
   };
 
   // Pick image from camera
@@ -352,18 +283,15 @@ export default function ReportScreen() {
     setLocationLoading(true);
     
     try {
-      // Get actual GPS coordinates with high accuracy
-      let loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest
+      let currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High
       });
-      
-      let { latitude, longitude } = loc.coords;
       
       // Get human-readable address
       try {
         const geocode = await Location.reverseGeocodeAsync({
-          latitude: latitude,
-          longitude: longitude
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude
         });
         
         if (geocode && geocode.length > 0) {
@@ -381,13 +309,9 @@ export default function ReportScreen() {
         console.warn("Geocoding error:", error);
       }
       
-      setLocation({
-        latitude: latitude,
-        longitude: longitude
-      });
+      setLocation(currentLocation.coords);
     } catch (error) {
       console.error("Location error:", error);
-      Alert.alert("Error", "Failed to get current location. Please try again or enter location manually.");
     } finally {
       setLocationLoading(false);
     }
