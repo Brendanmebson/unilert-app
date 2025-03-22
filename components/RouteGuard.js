@@ -17,9 +17,8 @@ export function RouteGuard({ children }) {
     console.log("RouteGuard check - Current route:", segments.join('/'));
     console.log("RouteGuard check - UserProfile:", userProfile ? "Available" : "Not available");
 
-    const inAuthGroup = segments[0] === '(auth)';
     const isLoginOrSignup = segments[0] === 'login' || segments[0] === 'signup';
-    const isRoot = segments.length === 0;
+    const isRoot = segments.length === 0 || segments[0] === 'index';
     
     if (!user && !isLoginOrSignup && !isRoot) {
       // User is not signed in and not on login/signup screen

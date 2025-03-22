@@ -18,6 +18,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { theme, isDark, setDarkMode } = useTheme();
   
+  
   // State management with more organized structure
   const [settings, setSettings] = useState({
     notifications: {

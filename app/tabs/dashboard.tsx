@@ -1,3 +1,4 @@
+// Dashboard update to display user details
 import { useState, useEffect, useRef } from "react";
 import { 
   View, 
@@ -31,7 +32,7 @@ export default function Dashboard() {
   
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const userName = auth.userProfile?.full_name || "Kamsiyochukwu";
+  const [userName, setUserName] = useState(auth.userProfile?.full_name || "User");
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,9 +79,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Refresh profile when dashboard loads
-    if (typeof auth.refreshProfile === 'function') {
-      auth.refreshProfile().then(() => {
-        console.log("Profile refreshed on dashboard load");
+    if (auth.user && typeof auth.refreshProfile === 'function') {
+      auth.refreshProfile().then((profile) => {
+        console.log("Profile refreshed on dashboard load:", profile);
+        if (profile) {
+          setUserName(profile.full_name || "User");
+        }
       }).catch(err => {
         console.error("Error refreshing profile:", err);
       });
@@ -126,6 +130,7 @@ export default function Dashboard() {
   const fetchAlerts = async () => {
     try {
       setLoading(true);
+      
       // Fetch alerts from Supabase
       const { data, error } = await supabase
         .from('alerts')
@@ -135,7 +140,67 @@ export default function Dashboard() {
       
       if (error) throw error;
       
-      if (data) {
+      // Check if we have data
+      if (!data || data.length === 0) {
+        console.log("No alerts found, creating sample data");
+        // Create sample alerts
+        const sampleAlerts = [
+          {
+            message: "Emergency drill scheduled for tomorrow at 10 AM.",
+            is_urgent: true,
+            created_at: new Date().toISOString()
+          },
+          {
+            message: "Lost item reported: A black backpack found near the cafeteria. Claim at the security office.",
+            is_urgent: false,
+            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week ago
+          }
+        ];
+        
+        // Insert sample alerts
+        const { error: insertError } = await supabase
+          .from('alerts')
+          .insert(sampleAlerts);
+          
+        if (insertError) {
+          console.error("Error inserting sample alerts:", insertError);
+          // Fallback to static data
+          setAlerts([
+            {
+              id: 1,
+              message: "Emergency drill scheduled for tomorrow at 10 AM.",
+              time: "2 hours ago",
+              date: "March 24, 2025",
+              urgent: true
+            },
+            {
+              id: 2,
+              message: "Lost item reported: A black backpack found near the cafeteria. Claim at the security office.",
+              time: "",
+              date: "March 17, 2025",
+              urgent: false
+            }
+          ]);
+        } else {
+          // Fetch the newly inserted data
+          const { data: freshData } = await supabase
+            .from('alerts')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+          if (freshData && freshData.length > 0) {
+            setAlerts(freshData.map(alert => ({
+              id: alert.id,
+              message: alert.message,
+              time: formatTimeAgo(alert.created_at),
+              date: new Date(alert.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+              urgent: alert.is_urgent
+            })));
+          }
+        }
+      } else {
+        // We have data from the database
         setAlerts(data.map(alert => ({
           id: alert.id,
           message: alert.message,
@@ -146,7 +211,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Error fetching alerts:", error);
-      // Fallback to static data if the fetch fails
+      // Fallback to static data
       setAlerts([
         {
           id: 1,
@@ -162,7 +227,6 @@ export default function Dashboard() {
           date: "March 17, 2025",
           urgent: false
         }
-        
       ]);
     } finally {
       setLoading(false);
@@ -180,7 +244,69 @@ export default function Dashboard() {
       
       if (error) throw error;
       
-      if (data) {
+      // Check if we have data
+      if (!data || data.length === 0) {
+        console.log("No safety updates found, creating sample data");
+        // Create sample safety updates
+        const sampleUpdates = [
+          {
+            title: "New Security Gates",
+            description: "New security gates have been installed at all campus entrances with 24/7 monitoring.",
+            icon: "shield-outline",
+            created_at: new Date().toISOString()
+          },
+          {
+            title: "Emergency Drills",
+            description: "Monthly emergency drills scheduled to ensure preparedness. Next drill: April 10th.",
+            icon: "fitness-outline",
+            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() // 2 days ago
+          }
+        ];
+        
+        // Insert sample updates
+        const { error: insertError } = await supabase
+          .from('safety_updates')
+          .insert(sampleUpdates);
+          
+        if (insertError) {
+          console.error("Error inserting sample updates:", insertError);
+          // Fallback to static data
+          setSafetyUpdates([
+            {
+              id: 1,
+              title: "New Security Gates",
+              description: "New security gates have been installed at all campus entrances with 24/7 monitoring.",
+              icon: "shield-outline",
+              date: "March 24, 2025"
+            },
+            {
+              id: 2,
+              title: "Emergency Drills",
+              description: "Monthly emergency drills scheduled to ensure preparedness. Next drill: April 10th.",
+              icon: "fitness-outline",
+              date: "March 22, 2025"
+            }
+          ]);
+        } else {
+          // Fetch the newly inserted data
+          const { data: freshData } = await supabase
+            .from('safety_updates')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(4);
+            
+          if (freshData && freshData.length > 0) {
+            setSafetyUpdates(freshData.map(update => ({
+              id: update.id,
+              title: update.title,
+              description: update.description,
+              icon: update.icon || "shield-outline",
+              date: new Date(update.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+            })));
+          }
+        }
+      } else {
+        // We have data from the database
         setSafetyUpdates(data.map(update => ({
           id: update.id,
           title: update.title,
@@ -272,6 +398,7 @@ export default function Dashboard() {
       ]
     );
   };
+
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -395,8 +522,8 @@ export default function Dashboard() {
           </View>
         </View>
 
-        {/* Safety Tools */}
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Safety Tools</Text>
+       {/* Safety Tools */}
+       <Text style={[styles.sectionTitle, { color: theme.text }]}>Safety Tools</Text>
         <View style={styles.toolsContainer}>
           <TouchableOpacity style={styles.toolButton} onPress={() => router.push("/tabs/helplines")}> 
             <View style={styles.toolIconContainer}>

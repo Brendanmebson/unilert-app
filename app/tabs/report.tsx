@@ -18,9 +18,13 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { reportsApi } from "../../lib/api";
+import { uploadImage } from "../../lib/storage";
 
 export default function ReportScreen() {
   const router = useRouter();
+  const auth = useAuth();
   
   // Form state
   const [name, setName] = useState("");
@@ -41,6 +45,17 @@ export default function ReportScreen() {
   const [formErrors, setFormErrors] = useState({});
   const [locationAddress, setLocationAddress] = useState("");
   const [locationPermission, setLocationPermission] = useState("unknown");
+
+  // Populate form with user data if available
+  useEffect(() => {
+    if (auth.userProfile && !anonymous) {
+      setName(auth.userProfile.full_name || "");
+      setMatricNo(auth.userProfile.matric_no || "");
+      setPhone(auth.userProfile.phone_number || "");
+      setCourse(auth.userProfile.course || "");
+      setDepartment(auth.userProfile.department || "");
+    }
+  }, [auth.userProfile, anonymous]);
 
   // Incident types
   const incidentTypes = [
@@ -168,39 +183,52 @@ export default function ReportScreen() {
     setIsSubmitting(true);
     
     try {
-      // Simulate API call with timeout
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       // Try to get location if not already available
       if (!location && locationPermission === "granted") {
         await getLocation();
       }
       
-      // Construct report data
-      const reportData = {
-        anonymous,
-        incidentType,
-        incident,
-        timestamp: new Date().toISOString(),
-        hasImage: !!image,
-        location: location ? {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          address: locationAddress
-        } : null
-      };
+      let imageUrl = null;
       
-      if (!anonymous) {
-        reportData.personalInfo = {
-          name,
-          matricNo,
-          phone,
-          course,
-          department
-        };
+      // Upload image to Supabase Storage if available
+      if (image) {
+        const userId = auth.user?.id || 'anonymous';
+        imageUrl = await uploadImage('report-images', userId, image);
+        
+        if (!imageUrl) {
+          console.warn("Failed to upload image, continuing without image");
+        }
       }
       
-      console.log("Report submitted:", reportData);
+      // Construct personal info object if not anonymous
+      const personalInfo = !anonymous ? {
+        name,
+        matricNo,
+        phone,
+        course,
+        department
+      } : null;
+      
+      // Prepare report data
+      const reportData = {
+        user_id: auth.user?.id,
+        anonymous,
+        incident_type: incidentType,
+        incident_description: incident,
+        location_latitude: location?.latitude,
+        location_longitude: location?.longitude,
+        location_address: locationAddress,
+        personal_info: personalInfo,
+        image_url: imageUrl,
+        status: 'submitted'
+      };
+      
+      // Submit report using our API service
+      const { data, error } = await reportsApi.submitReport(reportData);
+      
+      if (error) throw error;
+      
+      console.log("Report submitted successfully:", data);
       
       // Show success message
       Alert.alert(
@@ -216,8 +244,8 @@ export default function ReportScreen() {
         }]
       );
     } catch (error) {
-      Alert.alert("Error", "Failed to submit report. Please try again.");
       console.error("Submission error:", error);
+      Alert.alert("Error", "Failed to submit report. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

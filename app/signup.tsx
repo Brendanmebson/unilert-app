@@ -1,11 +1,23 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, ScrollView } from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Image, 
+  Alert, 
+  ActivityIndicator, 
+  ScrollView 
+} from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function SignupScreen() {
   const router = useRouter();
+  const auth = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,11 +68,18 @@ export default function SignupScreen() {
       setPasswordError("Passwords do not match");
       return;
     }
+    
+    // Password strength check
+    if (password.length < 8) {
+      setPasswordError("Password must be at least 8 characters long");
+      return;
+    }
 
     setLoading(true);
     
     try {
       console.log("Starting signup process for: ", email);
+      
       // 1. Create the user in Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -68,7 +87,8 @@ export default function SignupScreen() {
         options: {
           data: {
             full_name: name,
-          }
+          },
+          emailRedirectTo: 'unilert://login'
         }
       });
       
@@ -93,23 +113,40 @@ export default function SignupScreen() {
       if (data?.user) {
         try {
           console.log("Creating profile for user ID:", data.user.id);
-          const { error: profileError } = await supabase
+          
+          // First check if profile exists
+          const { data: existingProfile, error: fetchError } = await supabase
             .from('profiles')
-            .insert([
-              { 
-                id: data.user.id,
-                full_name: name,
-                matric_no: matricNo,
-                phone_number: phone || null,
-                email: email,
-              }
-            ]);
+            .select('id')
+            .eq('id', data.user.id)
+            .single();
             
-          if (profileError) {
-            console.error("Profile creation error:", profileError);
-            // Continue anyway since the user was created
+          if (fetchError && fetchError.code !== 'PGRST116') {
+            console.error("Error checking existing profile:", fetchError);
+          }
+          
+          if (!existingProfile) {
+            // Use upsert to handle potential duplicate key situations
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .upsert([
+                { 
+                  id: data.user.id,
+                  full_name: name,
+                  matric_no: matricNo,
+                  phone_number: phone || null,
+                  email: email,
+                }
+              ], { onConflict: 'id' });
+              
+            if (profileError) {
+              console.error("Profile creation error:", profileError);
+              // Continue anyway since the user was created
+            } else {
+              console.log("Profile created successfully");
+            }
           } else {
-            console.log("Profile created successfully");
+            console.log("Profile already exists, skipping creation");
           }
         } catch (profileErr) {
           console.error("Error creating profile:", profileErr);
@@ -129,6 +166,14 @@ export default function SignupScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Google Sign-Up
+  const handleGoogleSignup = async () => {
+    Alert.alert(
+      "Google Sign Up",
+      "This feature is coming soon!"
+    );
   };
 
   return (
@@ -239,9 +284,9 @@ export default function SignupScreen() {
 
           <Text style={styles.orText}>- Or sign up with -</Text>
 
-          {/* Google Sign Up Only */}
+          {/* Google Sign Up */}
           <View style={styles.socialContainer}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={handleGoogleSignup}>
               <Image source={require("../assets/icons/google.png")} style={styles.socialIcon} />
             </TouchableOpacity>
           </View>
@@ -309,7 +354,6 @@ const styles = StyleSheet.create({
     padding: 30,
     borderRadius: 15,
     alignItems: 'center',
-    // Shadow properties
     shadowColor: '#003366',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -388,7 +432,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 8,
     marginTop: 10,
-    // Button shadow
     shadowColor: '#003366',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,

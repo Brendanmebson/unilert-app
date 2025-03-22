@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Image, 
+  Alert, 
+  ActivityIndicator 
+} from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
@@ -88,7 +97,7 @@ export default function LoginScreen() {
       } else if (data?.user) {
         console.log("Login successful:", data.user.id);
         
-        // Manually refresh the profile after login
+        // Refresh the profile after login
         if (typeof auth.refreshProfile === 'function') {
           console.log("Refreshing profile after login");
           await auth.refreshProfile();
@@ -103,6 +112,50 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Forgot Password
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setEmailError("Please enter your email address");
+      return;
+    }
+    
+    if (!email.includes("@") || !email.toLowerCase().endsWith(".edu.ng")) {
+      setEmailError("Please enter a valid school email (.edu.ng)");
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: 'unilert://reset-password',
+      });
+      
+      if (error) throw error;
+      
+      Alert.alert(
+        "Password Reset Link Sent",
+        "If an account exists with this email, you will receive a password reset link shortly."
+      );
+    } catch (error) {
+      console.error("Reset password error:", error.message);
+      Alert.alert(
+        "Error",
+        "Failed to send password reset email. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google Sign-In
+  const handleGoogleLogin = async () => {
+    Alert.alert(
+      "Google Sign In",
+      "This feature is coming soon!"
+    );
   };
 
   return (
@@ -166,15 +219,18 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         {/* Forgot Password */}
-        <TouchableOpacity style={styles.forgotContainer}>
+        <TouchableOpacity 
+          style={styles.forgotContainer}
+          onPress={handleForgotPassword}
+        >
           <Text style={styles.forgotText}>Forgot Password?</Text>
         </TouchableOpacity>
 
         <Text style={styles.orText}>- Or sign in with -</Text>
 
-        {/* Google Sign In Only */}
+        {/* Google Sign In */}
         <View style={styles.socialContainer}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={handleGoogleLogin}>
             <Image source={require("../assets/icons/google.png")} style={styles.socialIcon} />
           </TouchableOpacity>
         </View>

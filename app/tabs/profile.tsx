@@ -13,15 +13,14 @@ import {
   Platform
 } from "react-native";
 import { Ionicons, Entypo, MaterialIcons, Feather, FontAwesome } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
+import { uploadImage } from "../../lib/storage";
 
 export default function ProfileScreen() {
-  const navigation = useNavigation();
   const router = useRouter();
   const { theme, isDark } = useTheme();
   const auth = useAuth();
@@ -54,48 +53,68 @@ export default function ProfileScreen() {
     if (auth.userProfile) {
       console.log("Updating profile form with userProfile data:", auth.userProfile);
       setTempData({
-        full_name: auth.userProfile.full_name || "Mebuge Kamsiyochukwu",
-        matric_no: auth.userProfile.matric_no || "21/1367",
-        phone_number: auth.userProfile.phone_number || "+2348155230994",
-        course: auth.userProfile.course || "Software Engineering",
-        department: auth.userProfile.department || "Software Engineering",
-        email: auth.userProfile.email || "mebuge3151@student.babcock.edu.ng",
-        level: auth.userProfile.level || "400",
-        hall: auth.userProfile.hall || "Emerald Hall",
+        full_name: auth.userProfile.full_name || "",
+        matric_no: auth.userProfile.matric_no || "",
+        phone_number: auth.userProfile.phone_number || "",
+        course: auth.userProfile.course || "",
+        department: auth.userProfile.department || "",
+        email: auth.userProfile.email || "",
+        level: auth.userProfile.level || "",
+        hall: auth.userProfile.hall || "",
         profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
-      });
-    } else {
-      // Add mock data when no profile exists
-      setTempData({
-        full_name: "Mebuge Kamsiyochukwu",
-        matric_no: "21/1367",
-        phone_number:"+2348155230994",
-        course: "Software Engineering",
-        department: "Software Engineering",
-        email: "mebuge3151@student.babcock.edu.ng",
-        level: "400",
-        hall: "Emerald Hall",
-        profile_image_url: "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128"
       });
     }
   }, [auth.userProfile]);
+  
+  // Force refresh profile data when the component mounts
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (auth.user && typeof auth.refreshProfile === 'function') {
+        try {
+          setLoading(true);
+          const profile = await auth.refreshProfile();
+          console.log("Profile loaded:", profile);
+          
+          if (profile) {
+            setTempData({
+              full_name: profile.full_name || "",
+              matric_no: profile.matric_no || "",
+              phone_number: profile.phone_number || "",
+              course: profile.course || "",
+              department: profile.department || "",
+              email: profile.email || "",
+              level: profile.level || "",
+              hall: profile.hall || "",
+              profile_image_url: profile.profile_image_url || "https://via.placeholder.com/100"
+            });
+          }
+        } catch (error) {
+          console.error("Error loading profile:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadUserProfile();
+  }, [auth.user]);
   
   // Request permissions on component mount
   useEffect(() => {
     requestPermissions();
   }, []);
   
-  // Add refresh on screen focus
+  // Refresh on focus
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const refreshData = () => {
       console.log("Profile screen focused, refreshing profile");
       if (typeof auth.refreshProfile === 'function') {
         auth.refreshProfile();
       }
-    });
+    };
 
-    return unsubscribe;
-  }, [navigation]);
+    refreshData();
+  }, []);
   
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
@@ -107,44 +126,15 @@ export default function ProfileScreen() {
   };
   
   // Function to upload an image to Supabase Storage
-  const uploadImage = async (uri) => {
-    if (!uri) return null;
+  const uploadProfileImage = async (uri) => {
+    if (!uri || !auth.user) return null;
     
     try {
       setLoading(true);
-      
-      // Get the file name from the URI
-      const fileName = uri.split('/').pop();
-      // Get the file extension
-      const fileExt = fileName.split('.').pop();
-      // Create a unique file name to prevent overwriting
-      const filePath = `${Date.now()}.${fileExt}`;
-      
-      // Convert the image to a blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      console.log("Uploading image to Supabase storage...");
-      
-      // Upload the image to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('profile-images')
-        .upload(filePath, blob, {
-          contentType: `image/${fileExt}`,
-          upsert: true
-        });
-      
-      if (error) throw error;
-      
-      // Get the public URL of the uploaded image
-      const { data: publicUrlData } = supabase.storage
-        .from('profile-images')
-        .getPublicUrl(filePath);
-      
-      console.log("Image uploaded successfully, URL:", publicUrlData.publicUrl);
-      return publicUrlData.publicUrl;
+      // Use the storage helper function
+      return await uploadImage('profile-images', auth.user.id, uri);
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error('Error uploading profile image:', error);
       Alert.alert('Upload Error', 'Failed to upload profile image. Please try again.');
       return null;
     } finally {
@@ -167,34 +157,26 @@ export default function ProfileScreen() {
     if (auth.userProfile) {
       // Reset to current profile data
       setTempData({
-        full_name: auth.userProfile.full_name || "Emmanuel James",
-        matric_no: auth.userProfile.matric_no || "BU/22/CSC/1234",
-        phone_number: auth.userProfile.phone_number || "+2348012345678",
-        course: auth.userProfile.course || "Computer Science",
-        department: auth.userProfile.department || "Computer Science & Mathematics",
-        email: auth.userProfile.email || "emmanuel.james@student.babcock.edu.ng",
-        level: auth.userProfile.level || "300",
-        hall: auth.userProfile.hall || "Nelson Mandela Hall",
-        profile_image_url: auth.userProfile.profile_image_url || "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128"
-      });
-    } else {
-      // Reset to mock data if no profile
-      setTempData({
-        full_name: "Emmanuel James",
-        matric_no: "BU/22/CSC/1234",
-        phone_number: "+2348012345678",
-        course: "Computer Science",
-        department: "Computer Science & Mathematics",
-        email: "emmanuel.james@student.babcock.edu.ng",
-        level: "300",
-        hall: "Nelson Mandela Hall",
-        profile_image_url: "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128"
+        full_name: auth.userProfile.full_name || "",
+        matric_no: auth.userProfile.matric_no || "",
+        phone_number: auth.userProfile.phone_number || "",
+        course: auth.userProfile.course || "",
+        department: auth.userProfile.department || "",
+        email: auth.userProfile.email || "",
+        level: auth.userProfile.level || "",
+        hall: auth.userProfile.hall || "",
+        profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
       });
     }
     setEditing(false);
   };
   
   const saveUserData = async () => {
+    if (!auth.user) {
+      Alert.alert("Error", "You must be logged in to update your profile");
+      return;
+    }
+
     try {
       setLoading(true);
       
@@ -210,7 +192,7 @@ export default function ProfileScreen() {
       // Check if image needs to be uploaded (if it's a local URI)
       if (tempData.profile_image_url && !tempData.profile_image_url.startsWith('http')) {
         console.log("Uploading new profile image from local URI");
-        const uploadedUrl = await uploadImage(tempData.profile_image_url);
+        const uploadedUrl = await uploadProfileImage(tempData.profile_image_url);
         if (uploadedUrl) {
           imageUrl = uploadedUrl;
         }
@@ -231,20 +213,13 @@ export default function ProfileScreen() {
       
       console.log("Saving profile with updates:", updates);
       
-      // Update profile in Supabase
-      if (auth.updateProfile) {
-        const result = await auth.updateProfile(updates);
-        
-        if (result.error) throw result.error;
-        
-        // Refresh the profile data
-        if (typeof auth.refreshProfile === 'function') {
-          await auth.refreshProfile();
-        }
-      } else {
-        // Handle case where auth.updateProfile might not be available
-        console.log("Profile would be updated with:", updates);
-      }
+      // Update profile through auth context
+      const { data, error } = await auth.updateProfile(updates);
+      
+      if (error) throw error;
+      
+      // Refresh the profile data
+      await auth.refreshProfile();
       
       setEditing(false);
       Alert.alert("Success", "Profile updated successfully");
@@ -278,7 +253,7 @@ export default function ProfileScreen() {
         });
       }
       
-      if (!result.canceled) {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         console.log("Image picked successfully");
         // Update the temporary data with the image URI
         setTempData({
@@ -288,18 +263,22 @@ export default function ProfileScreen() {
         
         // If not in editing mode, save immediately
         if (!editing) {
-          const uploadedUrl = await uploadImage(result.assets[0].uri);
+          if (!auth.user) {
+            Alert.alert("Error", "You must be logged in to update your profile picture");
+            return;
+          }
+
+          const uploadedUrl = await uploadProfileImage(result.assets[0].uri);
           if (uploadedUrl) {
             // Update profile with new image URL
-            if (auth.updateProfile) {
-              await auth.updateProfile({ profile_image_url: uploadedUrl });
-              
-              if (typeof auth.refreshProfile === 'function') {
-                await auth.refreshProfile();
-              }
-            }
+            const { error } = await auth.updateProfile({ profile_image_url: uploadedUrl });
             
-            Alert.alert("Success", "Profile picture updated successfully");
+            if (error) {
+              Alert.alert("Error", "Failed to update profile with new image");
+            } else {
+              await auth.refreshProfile();
+              Alert.alert("Success", "Profile picture updated successfully");
+            }
           }
         }
       }
@@ -342,13 +321,15 @@ export default function ProfileScreen() {
     );
   };
 
-  // If showing settings or help screens
+  // Redirect to appropriate screens if show flags are true
   if (showSettings) {
-    return <SettingsScreen onBack={() => setShowSettings(false)} />;
+    router.push("/tabs/settings");
+    return null;
   }
   
   if (showHelp) {
-    return <HelpScreen onBack={() => setShowHelp(false)} />;
+    router.push("/tabs/help");
+    return null;
   }
 
   return (
@@ -361,7 +342,7 @@ export default function ProfileScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: "#FFD700" }]}>Profile</Text>
@@ -411,7 +392,7 @@ export default function ProfileScreen() {
             source={{ 
               uri: editing 
                 ? tempData.profile_image_url 
-                : (auth.userProfile?.profile_image_url || tempData.profile_image_url || "https://ui-avatars.com/api/?name=Emmanuel+James&background=0D8ABC&color=fff&size=128") 
+                : (auth.userProfile?.profile_image_url || tempData.profile_image_url || "https://via.placeholder.com/100") 
             }} 
             style={styles.profileImage} 
           />
@@ -669,8 +650,6 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1
   },
-  
-  // Loading overlay
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -681,8 +660,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1000
   },
-  
-  // Header
   header: { 
     flexDirection: "row", 
     justifyContent: "space-between", 
@@ -697,8 +674,6 @@ const styles = StyleSheet.create({
     fontSize: 20, 
     fontWeight: "bold"
   },
-
-  // Dropdown menu
   dropdown: {
     position: "absolute",
     top: 40,
@@ -723,8 +698,6 @@ const styles = StyleSheet.create({
     marginLeft: 10, 
     fontSize: 14
   },
-
-  // Profile section
   profileContainer: { 
     alignItems: "center", 
     marginTop: 10 
@@ -760,8 +733,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20
   },
-
-  // Details section
   detailsContainer: { 
     marginTop: 10,
     borderRadius: 12,
@@ -812,8 +783,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontWeight: '500'
   },
-
-  // Info fields
   info: { 
     marginTop: 18
   },
@@ -844,8 +813,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontStyle: "italic"
   },
-  
-  // Status section
   sectionContainer: {
     marginTop: 25,
     marginHorizontal: 20,
@@ -871,6 +838,7 @@ const styles = StyleSheet.create({
   },
   statusIcon: {
     width: 30,
+    height: 30,
     borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
@@ -879,51 +847,47 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 14
   },
-  
- // Modal styles
- modalOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  justifyContent: 'flex-end'
-},
-modalContent: {
-  borderTopLeftRadius: 20,
-  borderTopRightRadius: 20,
-  padding: 20
-},
-modalTitle: {
-  fontSize: 18,
-  fontWeight: 'bold',
-  marginBottom: 20,
-  textAlign: 'center'
-},
-modalOption: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  padding: 15,
-  borderBottomWidth: 1
-},
-modalOptionText: {
-  marginLeft: 15,
-  fontSize: 16
-},
-modalCancelButton: {
-  padding: 15,
-  alignItems: 'center',
-  marginTop: 10
-},
-modalCancelText: {
-  fontSize: 16,
-  fontWeight: '600'
-},
-
-// Footer
-footer: {
-  alignItems: 'center',
-  padding: 20,
-  marginTop: 10
-},
-versionText: {
-  fontSize: 12
-}
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end'
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center'
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1
+  },
+  modalOptionText: {
+    marginLeft: 15,
+    fontSize: 16
+  },
+  modalCancelButton: {
+    padding: 15,
+    alignItems: 'center',
+    marginTop: 10
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  footer: {
+    alignItems: 'center',
+    padding: 20,
+    marginTop: 10
+  },
+  versionText: {
+    fontSize: 12
+  }
 });
