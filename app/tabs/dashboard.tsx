@@ -1,22 +1,24 @@
-// Dashboard update to display user details
-import { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { 
   View, 
   Text, 
-  TouchableOpacity, 
+  Image, 
   StyleSheet, 
-  ScrollView, 
-  SafeAreaView, 
-  Dimensions, 
-  Alert,
+  Animated, 
+  ActivityIndicator,
+  Dimensions,
   StatusBar,
-  Platform 
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Platform
 } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get screen dimensions for responsive design
 const { width } = Dimensions.get("window");
@@ -28,11 +30,11 @@ export default function Dashboard() {
   const auth = useAuth();
   
   // Add debug logging
-  console.log("Dashboard rendering with userProfile:", auth.userProfile);
+  console.log("[Dashboard] Rendering with userProfile:", auth?.userProfile);
   
   const [greeting, setGreeting] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [userName, setUserName] = useState(auth.userProfile?.full_name || "User");
+  const [userName, setUserName] = useState(auth?.userProfile?.full_name || "User");
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,20 +79,100 @@ export default function Dashboard() {
   const tipsCarouselRef = useRef(null);
   const [activeTipIndex, setActiveTipIndex] = useState(0);
 
-  useEffect(() => {
-    // Refresh profile when dashboard loads
-    if (auth.user && typeof auth.refreshProfile === 'function') {
-      auth.refreshProfile().then((profile) => {
-        console.log("Profile refreshed on dashboard load:", profile);
-        if (profile) {
-          setUserName(profile.full_name || "User");
+  // Enhanced function to load user profile from multiple sources
+  const loadUserProfile = async () => {
+    try {
+      console.log("[Dashboard] Attempting to load user profile");
+      
+      // First check if we have a userProfile in auth context
+      if (auth?.userProfile) {
+        console.log("[Dashboard] Using profile from auth context:", auth.userProfile.full_name);
+        setUserName(auth.userProfile.full_name || "User");
+        updateGreeting();
+        return;
+      }
+      
+      console.log("[Dashboard] No profile in auth context, checking other sources");
+      
+      // Try to get from AsyncStorage
+      try {
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile);
+          console.log("[Dashboard] Found profile in AsyncStorage:", profileData.full_name);
+          setUserName(profileData.full_name || "User");
+          updateGreeting();
+          return;
         }
-      }).catch(err => {
-        console.error("Error refreshing profile:", err);
-      });
+      } catch (e) {
+        console.error("[Dashboard] Error reading from AsyncStorage:", e);
+      }
+      
+      // If we have a user but no profile, try to fetch directly
+      if (auth?.user) {
+        console.log("[Dashboard] Have user but no profile, fetching from Supabase:", auth.user.id);
+        
+        // Get profile directly from Supabase
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', auth.user.id)
+          .single();
+        
+        if (error) {
+          console.error("[Dashboard] Error fetching profile from Supabase:", error);
+        } else if (data) {
+          console.log("[Dashboard] Fetched profile from Supabase:", data.full_name);
+          setUserName(data.full_name || "User");
+          // Store for future use
+          await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+          updateGreeting();
+          return;
+        }
+      }
+      
+      // If all else fails, try to get active session and fetch profile
+      console.log("[Dashboard] Checking for active session");
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        if (sessionData?.session?.user) {
+          console.log("[Dashboard] Found active session, fetching profile for:", sessionData.session.user.id);
+          const userId = sessionData.session.user.id;
+          
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+          
+          if (error) {
+            console.error("[Dashboard] Error fetching profile from active session:", error);
+          } else if (data) {
+            console.log("[Dashboard] Successfully fetched profile from session:", data.full_name);
+            setUserName(data.full_name || "User");
+            await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+            updateGreeting();
+            return;
+          }
+        } else {
+          console.log("[Dashboard] No active session found, using default name");
+        }
+      } catch (e) {
+        console.error("[Dashboard] Error checking session:", e);
+      }
+    } catch (error) {
+      console.error("[Dashboard] Error loading profile:", error);
+    } finally {
+      updateGreeting(); // Make sure greeting is updated even if profile loading fails
     }
+  };
+
+  useEffect(() => {
+    // Enhanced profile loading that tries multiple sources
+    loadUserProfile();
     
-    updateGreeting();
+    // Load alerts and safety updates
     fetchAlerts();
     fetchSafetyUpdates();
   }, []);
@@ -99,6 +181,14 @@ export default function Dashboard() {
   useEffect(() => {
     updateGreeting();
   }, [userName]);
+  
+  // Update userName when profile changes in auth context
+  useEffect(() => {
+    if (auth?.userProfile?.full_name) {
+      console.log("[Dashboard] Profile updated in auth context:", auth.userProfile.full_name);
+      setUserName(auth.userProfile.full_name);
+    }
+  }, [auth?.userProfile]);
   
   // Auto-scroll effect for tips carousel
   useEffect(() => {
@@ -142,7 +232,7 @@ export default function Dashboard() {
       
       // Check if we have data
       if (!data || data.length === 0) {
-        console.log("No alerts found, creating sample data");
+        console.log("[Dashboard] No alerts found, creating sample data");
         // Create sample alerts
         const sampleAlerts = [
           {
@@ -163,7 +253,7 @@ export default function Dashboard() {
           .insert(sampleAlerts);
           
         if (insertError) {
-          console.error("Error inserting sample alerts:", insertError);
+          console.error("[Dashboard] Error inserting sample alerts:", insertError);
           // Fallback to static data
           setAlerts([
             {
@@ -210,7 +300,7 @@ export default function Dashboard() {
         })));
       }
     } catch (error) {
-      console.error("Error fetching alerts:", error);
+      console.error("[Dashboard] Error fetching alerts:", error);
       // Fallback to static data
       setAlerts([
         {
@@ -246,7 +336,7 @@ export default function Dashboard() {
       
       // Check if we have data
       if (!data || data.length === 0) {
-        console.log("No safety updates found, creating sample data");
+        console.log("[Dashboard] No safety updates found, creating sample data");
         // Create sample safety updates
         const sampleUpdates = [
           {
@@ -269,7 +359,7 @@ export default function Dashboard() {
           .insert(sampleUpdates);
           
         if (insertError) {
-          console.error("Error inserting sample updates:", insertError);
+          console.error("[Dashboard] Error inserting sample updates:", insertError);
           // Fallback to static data
           setSafetyUpdates([
             {
@@ -316,7 +406,7 @@ export default function Dashboard() {
         })));
       }
     } catch (error) {
-      console.error("Error fetching safety updates:", error);
+      console.error("[Dashboard] Error fetching safety updates:", error);
       // Fallback to static data
       setSafetyUpdates([
         {
@@ -386,10 +476,17 @@ export default function Dashboard() {
           text: "Logout", 
           onPress: async () => {
             try {
-              await auth.signOut();
+              if (auth?.signOut) {
+                await auth.signOut();
+              } else {
+                // Fallback logout if auth context method is not available
+                await supabase.auth.signOut();
+                await AsyncStorage.removeItem('userProfile');
+                await AsyncStorage.removeItem('user');
+              }
               router.push("../login");
             } catch (error) {
-              console.error("Logout error:", error);
+              console.error("[Dashboard] Logout error:", error);
               Alert.alert("Error", "Failed to logout. Please try again.");
             }
           },
@@ -399,9 +496,30 @@ export default function Dashboard() {
     );
   };
 
+  // Check session periodically to ensure we're still logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          console.log("[Dashboard] Session expired, redirecting to login");
+          router.replace("/login");
+        }
+      } catch (error) {
+        console.error("[Dashboard] Error checking session:", error);
+      }
+    };
+
+    // Check once when component mounts
+    checkSession();
+
+    // Set up interval to check periodically
+    const interval = setInterval(checkSession, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={isDark ? "#121212" : "#FFF"} />
       
       {/* Header */}
@@ -465,6 +583,35 @@ export default function Dashboard() {
         onScrollBeginDrag={handlePressOutside}
         contentContainerStyle={{ padding: 15 }}
       >
+        {/* Debug info section - only in development */}
+        {__DEV__ && (
+          <View style={{
+            padding: 10,
+            margin: 10,
+            backgroundColor: isDark ? '#333' : '#f0f0f0',
+            borderRadius: 8
+          }}>
+            <Text style={{color: theme.text, fontWeight: 'bold'}}>Debug Info:</Text>
+            <Text style={{color: theme.text}}>Auth state: {auth?.user ? 'Logged in' : 'Not logged in'}</Text>
+            <Text style={{color: theme.text}}>User ID: {auth?.user?.id || 'None'}</Text>
+            <Text style={{color: theme.text}}>Profile loaded: {auth?.userProfile ? 'Yes' : 'No'}</Text>
+            <Text style={{color: theme.text}}>Name: {userName}</Text>
+            <Text style={{color: theme.text}}>Current greeting: {greeting}</Text>
+            <TouchableOpacity 
+              style={{
+                marginTop: 5,
+                padding: 8,
+                backgroundColor: isDark ? '#444' : '#ddd',
+                borderRadius: 4,
+                alignItems: 'center'
+              }}
+              onPress={loadUserProfile}
+            >
+              <Text style={{color: theme.text}}>Reload Profile</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Weather Widget */}
         <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.weatherWidget}>
@@ -476,7 +623,24 @@ export default function Dashboard() {
           </View>
         </View>
         
-        {/* Daily Safety Tips Carousel - Phone-fitted */}
+        {/* User Profile Summary */}
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <View style={styles.profileSummary}>
+            <View style={[styles.profileIcon, { backgroundColor: theme.accent }]}>
+              <Text style={styles.profileInitials}>
+                {userName.split(' ').map(name => name[0]).join('').toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.profileDetails}>
+              <Text style={[styles.profileName, {color: theme.text}]}>{userName}</Text>
+              <Text style={[styles.profileInfo, {color: theme.secondaryText}]}>
+                {auth?.userProfile?.matric_no || 'No Matric Number'} • {auth?.userProfile?.department || 'No Department'}
+              </Text>
+            </View>
+          </View>
+        </View>
+        
+        {/* Daily Safety Tips Carousel */}
         <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.carouselHeader}>
             <Text style={[styles.carouselTitle, { color: theme.text }]}>Daily Safety Tips</Text>
@@ -522,8 +686,8 @@ export default function Dashboard() {
           </View>
         </View>
 
-       {/* Safety Tools */}
-       <Text style={[styles.sectionTitle, { color: theme.text }]}>Safety Tools</Text>
+        {/* Safety Tools */}
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Safety Tools</Text>
         <View style={styles.toolsContainer}>
           <TouchableOpacity style={styles.toolButton} onPress={() => router.push("/tabs/helplines")}> 
             <View style={styles.toolIconContainer}>
@@ -618,7 +782,7 @@ export default function Dashboard() {
             style={[styles.quickAccessButton, { backgroundColor: theme.card }]} 
             onPress={() => showComingSoonAlert("Safety Resources")}
           >
-            <Ionicons name="book-outline" size={24} color={theme.accent} />
+<Ionicons name="book-outline" size={24} color={theme.accent} />
             <Text style={[styles.quickAccessText, { color: theme.text }]}>Safety Resources</Text>
           </TouchableOpacity>
           <TouchableOpacity 
@@ -697,13 +861,41 @@ export default function Dashboard() {
           ]}>Notifications</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
+  },
+  profileSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+  },
+  profileIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileInitials: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  profileDetails: {
+    marginLeft: 10,
+  },
+  profileName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  profileInfo: {
+    fontSize: 14,
+    marginTop: 2,
   },
   header: { 
     flexDirection: "row", 
@@ -807,7 +999,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     borderWidth: 1,
-    width: 363,
   },
   tipHeader: {
     flexDirection: "row",

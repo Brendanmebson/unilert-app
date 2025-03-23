@@ -48,7 +48,7 @@ export const ThemeContext = createContext({
   theme: lightTheme,
   isDark: false,
   toggleTheme: () => {},
-  setDarkMode: (value) => {},
+  setDarkMode: (value: any) => {},
 });
 
 export const ThemeProvider = ({ children }) => {
@@ -92,7 +92,7 @@ export const ThemeProvider = ({ children }) => {
     setIsDark(prevIsDark => !prevIsDark);
   };
 
-  const setDarkMode = (value) => {
+  const setDarkMode = (value: boolean | ((prevState: boolean) => boolean)) => {
     console.log("Setting dark mode to:", value);
     setIsDark(value);
   };

@@ -198,25 +198,30 @@ export default function ProfileScreen() {
         }
       }
       
-      // Prepare update data
+      // Prepare complete update data - include ALL fields
       const updates = {
         full_name: tempData.full_name,
+        matric_no: tempData.matric_no || auth.userProfile?.matric_no || "",
         phone_number: tempData.phone_number || null,
+        email: tempData.email || auth.userProfile?.email || "",
+        course: tempData.course || null,
+        department: tempData.department || null,
+        level: tempData.level || null,
         hall: tempData.hall || null,
-        profile_image_url: imageUrl
+        profile_image_url: imageUrl || null
       };
       
-      // Only include fields that can be edited by the user
-      if (!auth.userProfile?.course) updates.course = tempData.course || null;
-      if (!auth.userProfile?.department) updates.department = tempData.department || null;
-      if (!auth.userProfile?.level) updates.level = tempData.level || null;
-      
-      console.log("Saving profile with updates:", updates);
+      console.log("Saving profile with complete updates:", updates);
       
       // Update profile through auth context
       const { data, error } = await auth.updateProfile(updates);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Profile update error:", error);
+        throw error;
+      }
+      
+      console.log("Profile updated successfully:", data);
       
       // Refresh the profile data
       await auth.refreshProfile();
@@ -599,6 +604,7 @@ export default function ProfileScreen() {
   );
 }
 
+// Reusable component for info fields
 // Reusable component for info fields
 const InfoField = ({ 
   label, 

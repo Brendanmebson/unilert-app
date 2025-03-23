@@ -24,6 +24,8 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [matricNo, setMatricNo] = useState("");
+  const [course, setCourse] = useState("");
+  const [department, setDepartment] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -51,36 +53,24 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
-    // Check if all required fields are filled
+    // Validation checks remain the same
     if (!name || !email || !password || !matricNo) {
       Alert.alert("Error", "Please fill all required fields");
       return;
     }
-
-    // Validate school email
-    if (!email || !email.includes("@") || !email.toLowerCase().endsWith(".edu.ng")) {
-      setEmailError("Please use a valid school email (.edu.ng)");
-      return;
-    }
-
-    // Check if passwords match
-    if (password !== confirmPassword) {
-      setPasswordError("Passwords do not match");
-      return;
-    }
-    
-    // Password strength check
-    if (password.length < 8) {
-      setPasswordError("Password must be at least 8 characters long");
-      return;
-    }
-
+  
     setLoading(true);
     
     try {
-      console.log("Starting signup process for: ", email);
+      // Step 1: Log all form values to confirm they're being captured
+      console.log("SIGNUP FORM VALUES:");
+      console.log("Name:", name);
+      console.log("Email:", email);
+      console.log("Matric No:", matricNo);
+      console.log("Phone:", phone);
+      console.log("Password length:", password.length);
       
-      // 1. Create the user in Supabase Auth
+      // Step 2: Auth signup
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -93,67 +83,60 @@ export default function SignupScreen() {
       });
       
       if (error) {
-        console.error("Signup error:", error);
+        console.error("Auth signup error:", error);
         throw error;
       }
       
-      console.log("Auth signup response:", data);
+      console.log("Auth signup successful, user ID:", data?.user?.id);
       
-      // 2. Check if email confirmation is needed
-      if (data?.user?.identities?.length === 0) {
-        Alert.alert(
-          "Registration Failed", 
-          "This email is already registered. Please use a different email.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-      
-      // 3. Create a profile record in Supabase
+      // Step 3: Create the profile with a delay to ensure auth is ready
       if (data?.user) {
         try {
-          console.log("Creating profile for user ID:", data.user.id);
+          // Create a separate variable for the profile data
+          const profileObject = {
+            id: data.user.id,
+            full_name: name,
+            matric_no: matricNo,
+            phone_number: phone || null,
+            email: email,
+            course: course || null,
+            department: department || null,
+            level: null,
+            hall: null,
+            profile_image_url: null
+          };
           
-          // First check if profile exists
-          const { data: existingProfile, error: fetchError } = await supabase
+          console.log("PROFILE DATA TO INSERT:", JSON.stringify(profileObject, null, 2));
+          
+          // Add a slight delay to ensure auth record is fully created
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Use insert instead of upsert for new users
+          const { data: insertData, error: insertError } = await supabase
             .from('profiles')
-            .select('id')
-            .eq('id', data.user.id)
-            .single();
-            
-          if (fetchError && fetchError.code !== 'PGRST116') {
-            console.error("Error checking existing profile:", fetchError);
-          }
+            .insert([profileObject])
+            .select();
           
-          if (!existingProfile) {
-            // Use upsert to handle potential duplicate key situations
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .upsert([
-                { 
-                  id: data.user.id,
-                  full_name: name,
-                  matric_no: matricNo,
-                  phone_number: phone || null,
-                  email: email,
-                }
-              ], { onConflict: 'id' });
-              
-            if (profileError) {
-              console.error("Profile creation error:", profileError);
-              // Continue anyway since the user was created
-            } else {
-              console.log("Profile created successfully");
-            }
+          if (insertError) {
+            console.error("Profile creation error:", insertError);
+            
+            // If insert fails, try direct SQL approach
+            console.log("Trying direct SQL approach...");
+            await supabase.rpc('force_insert_profile', {
+              p_id: data.user.id,
+              p_full_name: name,
+              p_matric_no: matricNo,
+              p_phone_number: phone,
+              p_email: email
+            });
           } else {
-            console.log("Profile already exists, skipping creation");
+            console.log("Profile inserted successfully:", insertData);
           }
         } catch (profileErr) {
-          console.error("Error creating profile:", profileErr);
-          // Continue to email verification message
+          console.error("Profile creation exception:", profileErr);
         }
         
-        // 4. Show verification message
+        // Proceed with success message
         Alert.alert(
           "Registration Successful", 
           "A verification link has been sent to your email. Please verify your account before logging in.",

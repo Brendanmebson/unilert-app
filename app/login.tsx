@@ -13,6 +13,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -53,7 +54,7 @@ export default function LoginScreen() {
     setLoading(true);
     
     try {
-      console.log("Attempting login with:", email);
+      console.log("[Login] Attempting login with:", email);
       
       // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -95,19 +96,31 @@ export default function LoginScreen() {
           throw error;
         }
       } else if (data?.user) {
-        console.log("Login successful:", data.user.id);
+        console.log("[Login] Success! User ID:", data.user.id);
         
-        // Refresh the profile after login
-        if (typeof auth.refreshProfile === 'function') {
-          console.log("Refreshing profile after login");
-          await auth.refreshProfile();
+        // Store user data in AsyncStorage for recovery
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Fetch profile directly after login
+        console.log("[Login] Fetching profile data directly");
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+          
+        if (profileData) {
+          console.log("[Login] Profile data loaded");
+          await AsyncStorage.setItem('userProfile', JSON.stringify(profileData));
+        } else if (profileError) {
+          console.error("[Login] Error fetching profile:", profileError);
         }
         
         // Navigate to dashboard
         router.replace("/tabs/dashboard");
       }
     } catch (error) {
-      console.error("Login error:", error.message);
+      console.error("[Login] Login error:", error.message);
       Alert.alert("Login Failed", error.message);
     } finally {
       setLoading(false);
@@ -246,6 +259,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Styles would go here
   container: {
     flex: 1,
     justifyContent: "center",
@@ -292,7 +306,6 @@ const styles = StyleSheet.create({
     padding: 30,
     borderRadius: 15,
     alignItems: 'center',
-    // Shadow properties
     shadowColor: '#003366',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -326,6 +339,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#F7F7F7",
     fontSize: 16,
   },
+  inputError: {
+    borderColor: "#ff3b30",
+  },
+  errorText: {
+    color: "#ff3b30",
+    fontSize: 12,
+    alignSelf: "flex-start",
+    marginBottom: 10,
+    marginTop: -10,
+  },
   passwordContainer: {
     width: "100%",
     flexDirection: "row",
@@ -348,16 +371,6 @@ const styles = StyleSheet.create({
     height: 55,
     justifyContent: "center",
   },
-  inputError: {
-    borderColor: "#ff3b30",
-  },
-  errorText: {
-    color: "#ff3b30",
-    fontSize: 12,
-    alignSelf: "flex-start",
-    marginBottom: 10,
-    marginTop: -10,
-  },
   button: {
     width: 280,
     backgroundColor: "#003366",
@@ -365,7 +378,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 8,
     marginTop: 10,
-    // Button shadow
     shadowColor: '#003366',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,

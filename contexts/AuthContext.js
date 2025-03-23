@@ -15,61 +15,104 @@ export const AuthProvider = ({ children }) => {
 
   // Check user on mount
   useEffect(() => {
-    checkUser();
+    console.log("[AuthContext] Initializing");
+    
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        console.log("[AuthContext] Checking for existing session");
+        
+        // Get current session
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("[AuthContext] Session error:", error);
+          setLoading(false);
+          return;
+        }
+        
+        if (data.session) {
+          console.log("[AuthContext] Found existing session for user:", data.session.user.id);
+          setSession(data.session);
+          setUser(data.session.user);
+          
+          // Fetch user profile
+          await fetchProfile(data.session.user.id);
+        } else {
+          console.log("[AuthContext] No active session found");
+          // Try to recover from AsyncStorage
+          const storedUser = await AsyncStorage.getItem('user');
+          if (storedUser) {
+            console.log("[AuthContext] Found user in AsyncStorage, attempting to refresh session");
+            const userData = JSON.parse(storedUser);
+            
+            // Try to refresh the session
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (refreshData?.session) {
+              console.log("[AuthContext] Session refreshed for user:", refreshData.session.user.id);
+              setSession(refreshData.session);
+              setUser(refreshData.session.user);
+              await fetchProfile(refreshData.session.user.id);
+            } else {
+              console.log("[AuthContext] Failed to refresh session:", refreshError);
+              // Clear stored user data
+              await AsyncStorage.removeItem('user');
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[AuthContext] Initialization error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    initializeAuth();
 
-    // Listen for auth state changes
+    // Auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log(`Supabase auth event: ${event}`);
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
+      console.log(`[AuthContext] Auth event: ${event}`);
       
-      // When user signs in, fetch their profile
-      if (event === 'SIGNED_IN' && newSession?.user) {
+      if (event === 'SIGNED_IN') {
+        console.log("[AuthContext] User signed in:", newSession.user.id);
+        setSession(newSession);
+        setUser(newSession.user);
+        
+        // Store user in AsyncStorage for recovery
+        await AsyncStorage.setItem('user', JSON.stringify(newSession.user));
+        
+        // Fetch profile
         await fetchProfile(newSession.user.id);
-      } else if (event === 'SIGNED_OUT') {
+      } 
+      else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        console.log("[AuthContext] User signed out or deleted");
+        setSession(null);
+        setUser(null);
         setUserProfile(null);
+        
+        // Clear stored data
+        await AsyncStorage.removeItem('user');
         await AsyncStorage.removeItem('userProfile');
+      }
+      else if (event === 'TOKEN_REFRESHED') {
+        console.log("[AuthContext] Token refreshed for session");
+        setSession(newSession);
+        setUser(newSession.user);
       }
       
       setLoading(false);
     });
 
     return () => {
+      console.log("[AuthContext] Cleaning up auth listener");
       authListener?.subscription?.unsubscribe();
     };
   }, []);
 
-  // Check for existing session
-  async function checkUser() {
-    try {
-      setLoading(true);
-      const { data } = await supabase.auth.getSession();
-      console.log("Session check result:", data.session ? "Found session" : "No session");
-      
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      
-      if (data.session?.user) {
-        console.log("User found in session, fetching profile for ID:", data.session.user.id);
-        await fetchProfile(data.session.user.id);
-      } else {
-        // Try to load from AsyncStorage if no active session
-        const storedProfile = await AsyncStorage.getItem('userProfile');
-        if (storedProfile) {
-          console.log("Found profile in AsyncStorage");
-          setUserProfile(JSON.parse(storedProfile));
-        }
-      }
-    } catch (error) {
-      console.error('Error checking user:', error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // Fetch user profile from Supabase
   async function fetchProfile(userId) {
-    console.log("Fetching profile for user ID:", userId);
+    console.log("[AuthContext] Fetching profile for user ID:", userId);
     try {
       // Load profile from Supabase
       const { data, error } = await supabase
@@ -79,23 +122,23 @@ export const AuthProvider = ({ children }) => {
         .single();
         
       if (error) {
-        console.error("Supabase profile fetch error:", error);
+        console.error("[AuthContext] Profile fetch error:", error);
         return null;
       }
       
-      console.log("Profile data received:", data);
+      console.log("[AuthContext] Profile data received:", data ? "Success" : "No data");
       
       if (data) {
         setUserProfile(data);
         // Save profile in AsyncStorage for faster loading
         await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-        console.log("Profile saved to AsyncStorage and state");
+        console.log("[AuthContext] Profile saved to AsyncStorage");
         return data;
       } else {
-        console.log("No profile data returned from Supabase");
+        console.log("[AuthContext] No profile data returned");
       }
     } catch (error) {
-      console.error('Error fetching profile:', error.message);
+      console.error('[AuthContext] Error fetching profile:', error.message);
     }
     return null;
   }
@@ -103,6 +146,7 @@ export const AuthProvider = ({ children }) => {
   // Sign up function
   async function signUp(email, password, userData) {
     try {
+      console.log("[AuthContext] Starting signup for:", email);
       // Using supabase client directly for the signUp method
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -117,7 +161,7 @@ export const AuthProvider = ({ children }) => {
       
       return { data, error: null };
     } catch (error) {
-      console.error('Error signing up:', error.message);
+      console.error('[AuthContext] Error signing up:', error.message);
       return { data: null, error };
     }
   }
@@ -125,6 +169,7 @@ export const AuthProvider = ({ children }) => {
   // Sign in function
   async function signIn(email, password) {
     try {
+      console.log("[AuthContext] Signing in user:", email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -132,9 +177,14 @@ export const AuthProvider = ({ children }) => {
       
       if (error) throw error;
       
+      if (data?.user) {
+        // Store user in AsyncStorage for recovery
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      }
+      
       return { data, error: null };
     } catch (error) {
-      console.error('Error signing in:', error.message);
+      console.error('[AuthContext] Error signing in:', error.message);
       return { data: null, error };
     }
   }
@@ -143,17 +193,21 @@ export const AuthProvider = ({ children }) => {
   async function signOut() {
     try {
       setLoading(true);
+      console.log("[AuthContext] Signing out user");
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
       // Clear profile data
       setUserProfile(null);
+      setUser(null);
+      setSession(null);
       await AsyncStorage.removeItem('userProfile');
-      console.log("User signed out and profile cleared");
+      await AsyncStorage.removeItem('user');
+      console.log("[AuthContext] User signed out and profile cleared");
       
       return { error: null };
     } catch (error) {
-      console.error('Error signing out:', error.message);
+      console.error('[AuthContext] Error signing out:', error.message);
       return { error };
     } finally {
       setLoading(false);
@@ -165,24 +219,39 @@ export const AuthProvider = ({ children }) => {
     try {
       if (!user) throw new Error('No user logged in');
       
-      console.log("Updating profile with:", updates);
+      console.log("[AuthContext] Updating profile for user:", user.id);
+      
+      // Create a complete updates object with all profile fields
+      const completeUpdates = {
+        // Start with existing profile data to ensure all fields are present
+        ...(userProfile || {}),
+        // Override with any fields passed in updates
+        ...updates,
+        // Ensure updated_at is set to now
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log("[AuthContext] Sending profile updates to Supabase");
       
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(completeUpdates)
         .eq('id', user.id)
         .select()
         .single();
         
-      if (error) throw error;
+      if (error) {
+        console.error("[AuthContext] Profile update error:", error);
+        throw error;
+      }
       
-      console.log("Profile updated successfully:", data);
+      console.log("[AuthContext] Profile updated successfully");
       setUserProfile(data);
       await AsyncStorage.setItem('userProfile', JSON.stringify(data));
       
       return { data, error: null };
     } catch (error) {
-      console.error('Error updating profile:', error.message);
+      console.error('[AuthContext] Error updating profile:', error.message);
       return { data: null, error };
     }
   }
@@ -190,6 +259,7 @@ export const AuthProvider = ({ children }) => {
   // Function to reset password
   async function resetPassword(email) {
     try {
+      console.log("[AuthContext] Requesting password reset for:", email);
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: 'unilert://reset-password',
       });
@@ -198,58 +268,10 @@ export const AuthProvider = ({ children }) => {
       
       return { data, error: null };
     } catch (error) {
-      console.error('Error resetting password:', error.message);
+      console.error('[AuthContext] Error resetting password:', error.message);
       return { data: null, error };
     }
   }
-
-  // In AuthContext.js - update the refreshProfile function for better debugging
-async function refreshProfile() {
-  if (user) {
-    console.log("Force refreshing profile for user:", user.id);
-    const profile = await fetchProfile(user.id);
-    console.log("Refreshed profile data:", profile);
-    return profile;
-  }
-  return null;
-}
-
-// Fetch user profile
-async function fetchProfile(userId) {
-  console.log("Fetching profile for user ID:", userId);
-  try {
-    // Load profile from Supabase
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-      
-    if (error) {
-      console.error("Supabase profile fetch error:", error);
-      return null;
-    }
-    
-    console.log("Profile data received:", data);
-    
-    if (data) {
-      setUserProfile(data);
-      // Save profile in AsyncStorage for faster loading
-      await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-      console.log("Profile saved to AsyncStorage and state");
-      return data;
-    } else {
-      console.log("No profile data returned from Supabase");
-    }
-  } catch (error) {
-    console.error('Error fetching profile:', error.message);
-    Alert.alert(
-      "Profile Error", 
-      "There was an error fetching your profile. Please try logging in again."
-    );
-  }
-  return null;
-}
 
   // Context value
   const value = {
@@ -262,7 +284,7 @@ async function fetchProfile(userId) {
     signOut,
     updateProfile,
     resetPassword,
-    refreshProfile
+    fetchProfile // Include this to allow manual profile fetching
   };
 
   return (
