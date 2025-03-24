@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         console.log("[AuthContext] Checking for existing session");
         
-        // Get current session
+        // Get current session from Supabase
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -31,48 +31,50 @@ export const AuthProvider = ({ children }) => {
           return;
         }
         
+        // If we have an active session, use it
         if (data.session) {
-          console.log("[AuthContext] Found existing session for user:", data.session.user.id);
+          console.log("[AuthContext] Found active session for user:", data.session.user.id);
           setSession(data.session);
           setUser(data.session.user);
           
-          // Fetch user profile
+          // Store user in AsyncStorage for recovery
+          await AsyncStorage.setItem('user', JSON.stringify(data.session.user));
+          
+          // Fetch profile
           await fetchProfile(data.session.user.id);
         } else {
-          console.log("[AuthContext] No active session found");
+          console.log("[AuthContext] No active session found, checking storage");
+          
           // Try to recover from AsyncStorage
-          try {
-            const storedUser = await AsyncStorage.getItem('user');
-            if (storedUser) {
-              console.log("[AuthContext] Found user in AsyncStorage, attempting to refresh session");
-              const userData = JSON.parse(storedUser);
-              setUser(userData); // Set user immediately from storage
-              
-              // Try to refresh the session
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-              
-              if (refreshData?.session) {
-                console.log("[AuthContext] Session refreshed for user:", refreshData.session.user.id);
-                setSession(refreshData.session);
-                setUser(refreshData.session.user);
-                await fetchProfile(refreshData.session.user.id);
-              } else {
-                console.log("[AuthContext] Failed to refresh session:", refreshError);
-                // If refresh fails, try to load profile from AsyncStorage
-                try {
-                  const storedProfile = await AsyncStorage.getItem('userProfile');
-                  if (storedProfile) {
-                    const profileData = JSON.parse(storedProfile);
-                    console.log("[AuthContext] Loaded profile from AsyncStorage:", profileData.full_name);
-                    setUserProfile(profileData);
-                  }
-                } catch (profileError) {
-                  console.error("[AuthContext] Error loading profile from storage:", profileError);
-                }
-              }
+          const storedUser = await AsyncStorage.getItem('user');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            console.log("[AuthContext] Found user in AsyncStorage:", userData.id);
+            
+            // Set user from storage immediately 
+            setUser(userData);
+            
+            // Load profile from storage
+            const storedProfile = await AsyncStorage.getItem('userProfile');
+            if (storedProfile) {
+              setUserProfile(JSON.parse(storedProfile));
             }
-          } catch (storageError) {
-            console.error("[AuthContext] Error accessing AsyncStorage:", storageError);
+            
+            // Try to refresh the session with Supabase
+            console.log("[AuthContext] Attempting to refresh session with Supabase");
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (refreshData?.session) {
+              console.log("[AuthContext] Session refreshed successfully");
+              setSession(refreshData.session);
+              setUser(refreshData.session.user);
+            } else {
+              console.log("[AuthContext] Session refresh failed:", refreshError?.message);
+              // Even if refresh fails, we'll still use the stored user data
+              // so the app shows the user as logged in
+            }
+          } else {
+            console.log("[AuthContext] No stored user found");
           }
         }
       } catch (error) {
@@ -403,8 +405,17 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     resetPassword,
     refreshProfile,
-    refreshUserData, // New method
-    fetchProfile
+    refreshUserData,
+    fetchProfile,
+    // Add these functions to allow direct manipulation
+    setUser: (userData) => {
+      console.log("[AuthContext] Directly setting user:", userData.id);
+      setUser(userData);
+    },
+    setSession: (sessionData) => {
+      console.log("[AuthContext] Directly setting session");
+      setSession(sessionData);
+    }
   };
 
   return (
