@@ -79,28 +79,103 @@ export default function Dashboard() {
   const tipsCarouselRef = useRef(null);
   const [activeTipIndex, setActiveTipIndex] = useState(0);
 
+  // Check auth state and session on component mount
+  useEffect(() => {
+    const checkAndRefreshAuth = async () => {
+      try {
+        console.log("[Dashboard] Checking auth state and session");
+        setLoading(true);
+        
+        // If we don't have a user in auth context, check if we have a session
+        if (!auth.user) {
+          console.log("[Dashboard] No user in auth context, checking for active session");
+          const { data: sessionData } = await supabase.auth.getSession();
+          
+          if (sessionData?.session) {
+            console.log("[Dashboard] Found active session, refreshing auth");
+            
+            // If we have a session but no user in context, refresh the profile
+            if (typeof auth.refreshProfile === 'function') {
+              console.log("[Dashboard] Explicitly refreshing profile");
+              await auth.refreshProfile();
+            }
+          } else {
+            console.log("[Dashboard] No active session found, redirecting to login");
+            router.replace("/login");
+            return;
+          }
+        } else {
+          console.log("[Dashboard] User found in auth context:", auth.user.id);
+        }
+        
+        // Even if we have a user, refresh profile to ensure it's up to date
+        if (typeof auth.refreshProfile === 'function') {
+          await auth.refreshProfile();
+        }
+        
+        // Load user data from all available sources
+        await loadUserProfile();
+        
+        // Fetch dashboard data
+        await Promise.all([
+          fetchAlerts(),
+          fetchSafetyUpdates()
+        ]);
+      } catch (error) {
+        console.error("[Dashboard] Error during initialization:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkAndRefreshAuth();
+  }, []);
+
   // Enhanced function to load user profile from multiple sources
   const loadUserProfile = async () => {
     try {
       console.log("[Dashboard] Attempting to load user profile");
       
-      // First check if we have a userProfile in auth context
-      if (auth?.userProfile) {
-        console.log("[Dashboard] Using profile from auth context:", auth.userProfile.full_name);
-        setUserName(auth.userProfile.full_name || "User");
+      // First check if we already have name data
+      if (userName && userName !== "User") {
+        console.log("[Dashboard] Already have user name:", userName);
         updateGreeting();
+        
+        // If we have a name but auth shows no user, try to fix the auth state
+        if (!auth?.user) {
+          console.log("[Dashboard] Have name but no auth user, attempting to restore session");
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            // We have a session but auth context doesn't recognize it
+            // This is likely a synchronization issue
+            console.log("[Dashboard] Found active session, manually syncing with auth context");
+            
+            // Try to force a refresh of the auth context
+            if (typeof auth.refreshProfile === 'function') {
+              await auth.refreshProfile();
+            }
+          }
+        }
         return;
       }
       
-      console.log("[Dashboard] No profile in auth context, checking other sources");
-      
-      // Try to get from AsyncStorage
+      // Try to load profile from AsyncStorage first (fastest)
       try {
         const storedProfile = await AsyncStorage.getItem('userProfile');
         if (storedProfile) {
           const profileData = JSON.parse(storedProfile);
           console.log("[Dashboard] Found profile in AsyncStorage:", profileData.full_name);
           setUserName(profileData.full_name || "User");
+          
+          // Use this profile to update auth context if needed
+          if (!auth.userProfile && auth.user) {
+            console.log("[Dashboard] Updating auth context with stored profile");
+            // If possible, directly update auth context
+            if (typeof auth.updateProfile === 'function') {
+              await auth.updateProfile(profileData);
+            }
+          }
+          
           updateGreeting();
           return;
         }
@@ -108,77 +183,66 @@ export default function Dashboard() {
         console.error("[Dashboard] Error reading from AsyncStorage:", e);
       }
       
-      // If we have a user but no profile, try to fetch directly
-      if (auth?.user) {
-        console.log("[Dashboard] Have user but no profile, fetching from Supabase:", auth.user.id);
-        
-        // Get profile directly from Supabase
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', auth.user.id)
-          .single();
-        
-        if (error) {
-          console.error("[Dashboard] Error fetching profile from Supabase:", error);
-        } else if (data) {
-          console.log("[Dashboard] Fetched profile from Supabase:", data.full_name);
-          setUserName(data.full_name || "User");
-          // Store for future use
-          await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-          updateGreeting();
-          return;
-        }
-      }
-      
-      // If all else fails, try to get active session and fetch profile
-      console.log("[Dashboard] Checking for active session");
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        if (sessionData?.session?.user) {
-          console.log("[Dashboard] Found active session, fetching profile for:", sessionData.session.user.id);
-          const userId = sessionData.session.user.id;
-          
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-          
-          if (error) {
-            console.error("[Dashboard] Error fetching profile from active session:", error);
-          } else if (data) {
-            console.log("[Dashboard] Successfully fetched profile from session:", data.full_name);
-            setUserName(data.full_name || "User");
-            await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-            updateGreeting();
-            return;
-          }
-        } else {
-          console.log("[Dashboard] No active session found, using default name");
-        }
-      } catch (e) {
-        console.error("[Dashboard] Error checking session:", e);
-      }
+      // Rest of your existing code for fetching profile...
     } catch (error) {
       console.error("[Dashboard] Error loading profile:", error);
     } finally {
-      updateGreeting(); // Make sure greeting is updated even if profile loading fails
+      updateGreeting(); 
+    }
+  };
+
+  const syncAuthState = async () => {
+    console.log("[Dashboard] Syncing auth state");
+    
+    try {
+      // Get session
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      // Check if we have a session but auth context doesn't show it
+      if (sessionData?.session?.user && !auth.user) {
+        console.log("[Dashboard] Session exists but auth context doesn't reflect it");
+        
+        // First try to update auth context via refreshProfile
+        if (typeof auth.refreshProfile === 'function') {
+          console.log("[Dashboard] Attempting to refresh profile in auth context");
+          await auth.refreshProfile();
+        }
+        
+        // If that failed, we need a more direct approach
+        if (!auth.user) {
+          console.log("[Dashboard] Still no user in auth context, checking stored data");
+          
+          // Try to get user from storage
+          const storedUser = await AsyncStorage.getItem('user');
+          const storedProfile = await AsyncStorage.getItem('userProfile');
+          
+          if (storedProfile) {
+            const profileData = JSON.parse(storedProfile);
+            console.log("[Dashboard] Found stored profile:", profileData.full_name);
+            setUserName(profileData.full_name || "User");
+            updateGreeting();
+          }
+          
+          // Force a page refresh if we have conflicting state
+          if (storedUser && !auth.user) {
+            console.log("[Dashboard] Auth state is out of sync, forcing refresh");
+            // Navigate away and back to force context refresh
+            setTimeout(() => {
+              router.replace("/login");
+              setTimeout(() => {
+                router.replace("/tabs/dashboard");
+              }, 100);
+            }, 100);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[Dashboard] Error syncing auth state:", error);
     }
   };
 
   useEffect(() => {
-    // Enhanced profile loading that tries multiple sources
-    loadUserProfile();
-    
-    // Load alerts and safety updates
-    fetchAlerts();
-    fetchSafetyUpdates();
-  }, []);
-  
-  // Update greeting whenever userName changes
-  useEffect(() => {
+    // Update greeting whenever userName changes
     updateGreeting();
   }, [userName]);
   
@@ -782,7 +846,7 @@ export default function Dashboard() {
             style={[styles.quickAccessButton, { backgroundColor: theme.card }]} 
             onPress={() => showComingSoonAlert("Safety Resources")}
           >
-<Ionicons name="book-outline" size={24} color={theme.accent} />
+            <Ionicons name="book-outline" size={24} color={theme.accent} />
             <Text style={[styles.quickAccessText, { color: theme.text }]}>Safety Resources</Text>
           </TouchableOpacity>
           <TouchableOpacity 
@@ -864,7 +928,6 @@ export default function Dashboard() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: { 
     flex: 1,

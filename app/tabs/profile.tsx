@@ -10,7 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  Platform
+  Platform,
+  RefreshControl
 } from "react-native";
 import { Ionicons, Entypo, MaterialIcons, Feather, FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -19,6 +20,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { uploadImage } from "../../lib/storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -34,6 +36,7 @@ export default function ProfileScreen() {
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Temporary state for editing
   const [tempData, setTempData] = useState({
@@ -48,73 +51,190 @@ export default function ProfileScreen() {
     profile_image_url: ""
   });
   
-  // Load user data whenever userProfile changes
-  useEffect(() => {
-    if (auth.userProfile) {
-      console.log("Updating profile form with userProfile data:", auth.userProfile);
-      setTempData({
-        full_name: auth.userProfile.full_name || "",
-        matric_no: auth.userProfile.matric_no || "",
-        phone_number: auth.userProfile.phone_number || "",
-        course: auth.userProfile.course || "",
-        department: auth.userProfile.department || "",
-        email: auth.userProfile.email || "",
-        level: auth.userProfile.level || "",
-        hall: auth.userProfile.hall || "",
-        profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
-      });
-    }
-  }, [auth.userProfile]);
+  // Helper function to update form with profile data
+  const updateProfileForm = (profileData) => {
+    if (!profileData) return;
+    
+    console.log("Updating profile form with data:", profileData.full_name);
+    
+    setTempData({
+      full_name: profileData.full_name || "",
+      matric_no: profileData.matric_no || "",
+      phone_number: profileData.phone_number || "",
+      course: profileData.course || "",
+      department: profileData.department || "",
+      email: profileData.email || "",
+      level: profileData.level || "",
+      hall: profileData.hall || "",
+      profile_image_url: profileData.profile_image_url || "https://via.placeholder.com/100"
+    });
+  };
   
-  // Force refresh profile data when the component mounts
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      if (auth.user && typeof auth.refreshProfile === 'function') {
-        try {
-          setLoading(true);
-          const profile = await auth.refreshProfile();
-          console.log("Profile loaded:", profile);
-          
-          if (profile) {
-            setTempData({
-              full_name: profile.full_name || "",
-              matric_no: profile.matric_no || "",
-              phone_number: profile.phone_number || "",
-              course: profile.course || "",
-              department: profile.department || "",
-              email: profile.email || "",
-              level: profile.level || "",
-              hall: profile.hall || "",
-              profile_image_url: profile.profile_image_url || "https://via.placeholder.com/100"
-            });
-          }
-        } catch (error) {
-          console.error("Error loading profile:", error);
-        } finally {
-          setLoading(false);
+  // Direct access to AsyncStorage
+  const forceLoadProfileFromStorage = async () => {
+    try {
+      setLoading(true);
+      console.log("Attempting direct storage access");
+      
+      const storedProfile = await AsyncStorage.getItem('userProfile');
+      if (storedProfile) {
+        console.log("Found profile in storage:", storedProfile);
+        const profileData = JSON.parse(storedProfile);
+        
+        // Update form data
+        updateProfileForm(profileData);
+        
+        // Also try to update auth context
+        if (typeof auth.updateProfile === 'function' && auth.user) {
+          auth.updateProfile(profileData);
         }
+        
+        Alert.alert("Success", "Profile loaded directly from storage");
+      } else {
+        Alert.alert("No Data", "No profile data found in storage");
+      }
+    } catch (error) {
+      console.error("Error loading from storage:", error);
+      Alert.alert("Error", "Failed to load profile from storage");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial data loading from all possible sources
+  useEffect(() => {
+    // Immediate function to load profile data from all possible sources
+    const loadProfileData = async () => {
+      console.log("Profile screen: Loading profile data from all sources");
+      setLoading(true);
+      
+      try {
+        // First check auth context
+        if (auth?.userProfile) {
+          console.log("Profile screen: Found data in auth context");
+          updateProfileForm(auth.userProfile);
+          setLoading(false);
+          return;
+        }
+        
+        // Then try AsyncStorage
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile);
+          console.log("Profile screen: Found data in AsyncStorage");
+          updateProfileForm(profileData);
+          
+          // Also update auth context if possible
+          if (auth?.updateProfile && auth.user) {
+            console.log("Profile screen: Updating auth context with stored data");
+            auth.updateProfile(profileData);
+          }
+          
+          setLoading(false);
+          return;
+        }
+        
+        // If we have a user ID but no profile, fetch from Supabase
+        if (auth?.user?.id) {
+          console.log("Profile screen: Fetching profile from Supabase");
+          
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', auth.user.id)
+            .single();
+            
+          if (data && !error) {
+            console.log("Profile screen: Successfully fetched from Supabase");
+            updateProfileForm(data);
+            
+            // Save to AsyncStorage for future use
+            await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+            
+            // Update auth context
+            if (auth?.updateProfile) {
+              auth.updateProfile(data);
+            }
+            
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // If all else fails, check for active session
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.user) {
+          console.log("Profile screen: Found active session, fetching profile");
+          
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', sessionData.session.user.id)
+            .single();
+            
+          if (data && !error) {
+            console.log("Profile screen: Successfully fetched from session");
+            updateProfileForm(data);
+            
+            // Save for future use
+            await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+            
+            // If we have an active session but no user in auth context, fix it
+            if (!auth.user && auth.refreshProfile) {
+              console.log("Profile screen: Fixing auth context with session data");
+              auth.refreshProfile();
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Profile screen: Error loading profile data:", error);
+      } finally {
+        setLoading(false);
       }
     };
     
-    loadUserProfile();
-  }, [auth.user]);
+    // Load profile data immediately
+    loadProfileData();
+  }, []);
+  
+  // Load user data whenever userProfile changes
+  useEffect(() => {
+    if (auth.userProfile) {
+      console.log("Updating profile form with userProfile data from auth context:", auth.userProfile);
+      updateProfileForm(auth.userProfile);
+    }
+  }, [auth.userProfile]);
   
   // Request permissions on component mount
   useEffect(() => {
     requestPermissions();
   }, []);
   
-  // Refresh on focus
-  useEffect(() => {
-    const refreshData = () => {
-      console.log("Profile screen focused, refreshing profile");
-      if (typeof auth.refreshProfile === 'function') {
-        auth.refreshProfile();
+  // Pull to refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      console.log("Manually refreshing profile");
+      if (typeof auth.refreshUserData === 'function') {
+        const profile = await auth.refreshUserData();
+        if (profile) {
+          updateProfileForm(profile);
+        }
+      } else if (typeof auth.refreshProfile === 'function') {
+        const profile = await auth.refreshProfile();
+        if (profile) {
+          updateProfileForm(profile);
+        }
+      } else {
+        // Fallback to direct storage access
+        await forceLoadProfileFromStorage();
       }
-    };
-
-    refreshData();
-  }, []);
+    } catch (error) {
+      console.error("Error refreshing profile:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
   
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
@@ -148,7 +268,6 @@ export default function ProfileScreen() {
       saveUserData();
     } else {
       // If we're starting to edit
-      setTempData({...tempData});
       setEditing(true);
     }
   };
@@ -156,17 +275,7 @@ export default function ProfileScreen() {
   const handleCancel = () => {
     if (auth.userProfile) {
       // Reset to current profile data
-      setTempData({
-        full_name: auth.userProfile.full_name || "",
-        matric_no: auth.userProfile.matric_no || "",
-        phone_number: auth.userProfile.phone_number || "",
-        course: auth.userProfile.course || "",
-        department: auth.userProfile.department || "",
-        email: auth.userProfile.email || "",
-        level: auth.userProfile.level || "",
-        hall: auth.userProfile.hall || "",
-        profile_image_url: auth.userProfile.profile_image_url || "https://via.placeholder.com/100"
-      });
+      updateProfileForm(auth.userProfile);
     }
     setEditing(false);
   };
@@ -208,23 +317,44 @@ export default function ProfileScreen() {
         department: tempData.department || null,
         level: tempData.level || null,
         hall: tempData.hall || null,
-        profile_image_url: imageUrl || null
+        profile_image_url: imageUrl || null,
+        updated_at: new Date().toISOString()
       };
       
       console.log("Saving profile with complete updates:", updates);
       
-      // Update profile through auth context
+      // First, update directly in Supabase to ensure changes are saved
+      const { data: supabaseData, error: supabaseError } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', auth.user.id)
+        .select();
+        
+      if (supabaseError) {
+        console.error("Direct Supabase update error:", supabaseError);
+        throw supabaseError;
+      }
+      
+      console.log("Profile updated in Supabase:", supabaseData);
+      
+      // Then update through auth context to keep everything in sync
       const { data, error } = await auth.updateProfile(updates);
       
       if (error) {
-        console.error("Profile update error:", error);
-        throw error;
+        console.error("Profile update error in context:", error);
+        // We continue because we already updated in Supabase
       }
       
-      console.log("Profile updated successfully:", data);
-      
       // Refresh the profile data
-      await auth.refreshProfile();
+      if (auth.refreshProfile) {
+        await auth.refreshProfile();
+      }
+      
+      // Also update AsyncStorage directly to ensure consistency
+      await AsyncStorage.setItem('userProfile', JSON.stringify({
+        ...auth.userProfile,
+        ...updates
+      }));
       
       setEditing(false);
       Alert.alert("Success", "Profile updated successfully");
@@ -275,15 +405,39 @@ export default function ProfileScreen() {
 
           const uploadedUrl = await uploadProfileImage(result.assets[0].uri);
           if (uploadedUrl) {
-            // Update profile with new image URL
+            // First update directly in Supabase
+            const { error: supabaseError } = await supabase
+              .from('profiles')
+              .update({ profile_image_url: uploadedUrl })
+              .eq('id', auth.user.id);
+              
+            if (supabaseError) {
+              console.error("Error updating image in Supabase:", supabaseError);
+              Alert.alert("Error", "Failed to update profile with new image in database");
+              return;
+            }
+            
+            // Then update through auth context
             const { error } = await auth.updateProfile({ profile_image_url: uploadedUrl });
             
             if (error) {
-              Alert.alert("Error", "Failed to update profile with new image");
-            } else {
-              await auth.refreshProfile();
-              Alert.alert("Success", "Profile picture updated successfully");
+              console.error("Error updating image in auth context:", error);
             }
+            
+            // Update AsyncStorage
+            const storedProfile = await AsyncStorage.getItem('userProfile');
+            if (storedProfile) {
+              const profileData = JSON.parse(storedProfile);
+              profileData.profile_image_url = uploadedUrl;
+              await AsyncStorage.setItem('userProfile', JSON.stringify(profileData));
+            }
+            
+            // Refresh profile
+            if (auth.refreshProfile) {
+              await auth.refreshProfile();
+            }
+            
+            Alert.alert("Success", "Profile picture updated successfully");
           }
         }
       }
@@ -390,6 +544,14 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.accent]}
+            tintColor={theme.accent}
+          />
+        }
       >
         {/* Profile Picture */}
         <View style={styles.profileContainer}>
@@ -397,7 +559,7 @@ export default function ProfileScreen() {
             source={{ 
               uri: editing 
                 ? tempData.profile_image_url 
-                : (auth.userProfile?.profile_image_url || tempData.profile_image_url || "https://via.placeholder.com/100") 
+                : (tempData.profile_image_url || "https://via.placeholder.com/100") 
             }} 
             style={styles.profileImage} 
           />
@@ -410,9 +572,67 @@ export default function ProfileScreen() {
         </View>
         
         <Text style={[styles.profileName, { color: theme.text }]}>
-          {editing ? tempData.full_name : (auth.userProfile?.full_name || tempData.full_name || "User")}
+          {tempData.full_name || "User"}
         </Text>
         <Text style={[styles.profileRole, { color: theme.secondaryText }]}>Student</Text>
+        
+        {/* Debug Info */}
+        {__DEV__ && (
+          <View style={{padding: 10, margin: 10, backgroundColor: isDark ? '#333' : '#f0f0f0', borderRadius: 8}}>
+            <Text style={{color: theme.text, fontWeight: 'bold'}}>Profile Debug Info:</Text>
+            <Text style={{color: theme.text}}>Auth state: {auth?.user ? 'Logged in' : 'Not logged in'}</Text>
+            <Text style={{color: theme.text}}>User ID: {auth?.user?.id || 'None'}</Text>
+            <Text style={{color: theme.text}}>Auth profile: {auth?.userProfile ? 'Available' : 'Not available'}</Text>
+            <Text style={{color: theme.text}}>Current name: {tempData.full_name || 'Not set'}</Text>
+            <Text style={{color: theme.text}}>Current email: {tempData.email || 'Not set'}</Text>
+            
+            <View style={{flexDirection: 'row', marginTop: 10}}>
+              <TouchableOpacity 
+                style={{
+                  padding: 8,
+                  backgroundColor: '#0A356D',
+                  borderRadius: 4,
+                  alignItems: 'center',
+                  flex: 1,
+                  margin: 5
+                }}
+                onPress={forceLoadProfileFromStorage}
+              >
+                <Text style={{color: '#fff'}}>Load from Storage</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={{
+                  padding: 8,
+                  backgroundColor: '#4CAF50',
+                  borderRadius: 4,
+                  alignItems: 'center',
+                  flex: 1,
+                  margin: 5
+                }}
+                onPress={async () => {
+                  try {
+                    if (auth?.refreshProfile) {
+                      const profile = await auth.refreshProfile();
+                      if (profile) {
+                        updateProfileForm(profile);
+                        Alert.alert("Profile refreshed", "Successfully refreshed profile");
+                      } else {
+                        Alert.alert("Refresh failed", "Could not refresh profile");
+                      }
+                    } else {
+                      Alert.alert("Not available", "refreshProfile not available");
+                    }
+                  } catch (e) {
+                    Alert.alert("Error", "Failed to refresh: " + e.message);
+                  }
+                }}
+              >
+                <Text style={{color: '#fff'}}>Refresh Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         
         {/* User Details */}
         <View style={[styles.detailsContainer, { backgroundColor: theme.card }]}>
@@ -437,92 +657,232 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <InfoField 
-            label="FULL NAME:" 
-            value={auth.userProfile?.full_name || tempData.full_name || ""}
-            tempValue={tempData.full_name}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('full_name', value)}
-            editable={true}
-            theme={theme}
-          />
+          {/* Info Fields */}
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>NAME:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input, 
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: "#FFD700",
+                      backgroundColor: 'transparent'
+                    }
+                  ]} 
+                  value={tempData.full_name} 
+                  onChangeText={(value) => handleTextChange('full_name', value)} 
+                  editable={true}
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter full name"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.full_name || 'Not specified'}
+                </Text>
+              )}
+            </View>
+          </View>
 
-          <InfoField 
-            label="Matric No:" 
-            value={auth.userProfile?.matric_no || tempData.matric_no || ""}
-            tempValue={tempData.matric_no}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('matric_no', value)}
-            editable={false}
-            helperText="Matric number cannot be changed"
-            theme={theme}
-          />
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Matric No:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input, 
+                    styles.disabledInput,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: theme.border,
+                      backgroundColor: (theme.isDark ? '#333' : '#f0f0f0')
+                    }
+                  ]} 
+                  value={tempData.matric_no} 
+                  onChangeText={(value) => handleTextChange('matric_no', value)} 
+                  editable={false}
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter matric number"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.matric_no || 'Not specified'}
+                </Text>
+              )}
+              {editing && (
+                <Text style={[styles.helperText, { color: theme.secondaryText }]}>Matric number cannot be changed</Text>
+              )}
+            </View>
+          </View>
 
-          <InfoField 
-            label="Phone No:" 
-            value={auth.userProfile?.phone_number || tempData.phone_number || ""}
-            tempValue={tempData.phone_number}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('phone_number', value)}
-            editable={true}
-            keyboardType="phone-pad"
-            theme={theme}
-          />
-          
-          <InfoField 
-            label="Email:" 
-            value={auth.userProfile?.email || tempData.email || ""}
-            tempValue={tempData.email}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('email', value)}
-            editable={false}
-            keyboardType="email-address"
-            helperText="Email cannot be changed"
-            theme={theme}
-          />
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Phone No:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: "#FFD700",
+                      backgroundColor: 'transparent'
+                    }
+                  ]} 
+                  value={tempData.phone_number} 
+                  onChangeText={(value) => handleTextChange('phone_number', value)} 
+                  editable={true}
+                  keyboardType="phone-pad"
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter phone number"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.phone_number || 'Not specified'}
+                </Text>
+              )}
+            </View>
+          </View>
 
-          <InfoField 
-            label="Course:" 
-            value={auth.userProfile?.course || tempData.course || ""}
-            tempValue={tempData.course}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('course', value)}
-            editable={!auth.userProfile?.course}
-            helperText={auth.userProfile?.course ? "Contact admin to change course" : null}
-            theme={theme}
-          />
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Email:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input, 
+                    styles.disabledInput,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: theme.border,
+                      backgroundColor: (theme.isDark ? '#333' : '#f0f0f0')
+                    }
+                  ]} 
+                  value={tempData.email} 
+                  onChangeText={(value) => handleTextChange('email', value)} 
+                  editable={false}
+                  keyboardType="email-address"
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter email"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.email || 'Not specified'}
+                </Text>
+              )}
+              {editing && (
+                <Text style={[styles.helperText, { color: theme.secondaryText }]}>Email cannot be changed</Text>
+              )}
+            </View>
+          </View>
 
-          <InfoField 
-            label="Department:" 
-            value={auth.userProfile?.department || tempData.department || ""}
-            tempValue={tempData.department}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('department', value)}
-            editable={!auth.userProfile?.department}
-            helperText={auth.userProfile?.department ? "Contact admin to change department" : null}
-            theme={theme}
-          />
-          
-          <InfoField 
-            label="Level:" 
-            value={auth.userProfile?.level || tempData.level || ""}
-            tempValue={tempData.level}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('level', value)}
-            editable={!auth.userProfile?.level}
-            helperText={auth.userProfile?.level ? "Level is updated by administration" : null}
-            theme={theme}
-          />
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Course:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: "#FFD700",
+                      backgroundColor: 'transparent'
+                    }
+                  ]} 
+                  value={tempData.course} 
+                  onChangeText={(value) => handleTextChange('course', value)} 
+                  editable={true}
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter course"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.course || 'Not specified'}
+                </Text>
+              )}
+            </View>
+          </View>
 
-          <InfoField 
-            label="Hall of Residence:" 
-            value={auth.userProfile?.hall || tempData.hall || ""}
-            tempValue={tempData.hall}
-            editing={editing}
-            onChangeText={(value) => handleTextChange('hall', value)}
-            editable={true}
-            theme={theme}
-          />
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Department:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: "#FFD700",
+                      backgroundColor: 'transparent'
+                    }
+                  ]} 
+                  value={tempData.department} 
+                  onChangeText={(value) => handleTextChange('department', value)} 
+                  editable={true}
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter department"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.department || 'Not specified'}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Level:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: "#FFD700",
+                      backgroundColor: 'transparent'
+                    }
+                  ]} 
+                  value={tempData.level} 
+                  onChangeText={(value) => handleTextChange('level', value)} 
+                  editable={true}
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter level"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.level || 'Not specified'}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.info}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Hall of Residence:</Text>
+            <View style={styles.valueContainer}>
+              {editing ? (
+                <TextInput 
+                  style={[
+                    styles.input,
+                    { 
+                      color: theme.text, 
+                      borderBottomColor: "#FFD700",
+                      backgroundColor: 'transparent',
+                    }
+                  ]} 
+                  value={tempData.hall} 
+                  onChangeText={(value) => handleTextChange('hall', value)} 
+                  editable={true}
+                  placeholderTextColor={theme.secondaryText}
+                  placeholder="Enter hall of residence"
+                />
+              ) : (
+                <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
+                  {tempData.hall || 'Not specified'}
+                </Text>
+              )}
+            </View>
+          </View>
         </View>
         
         <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
@@ -554,6 +914,21 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+        
+        {/* Force Load Profile Button */}
+        <TouchableOpacity
+          style={{
+            marginHorizontal: 20,
+            marginTop: 20,
+            padding: 15,
+            backgroundColor: '#FF9800',
+            borderRadius: 8,
+            alignItems: 'center'
+          }}
+          onPress={forceLoadProfileFromStorage}
+        >
+          <Text style={{color: 'white', fontWeight: 'bold'}}>Force Load Profile Data</Text>
+        </TouchableOpacity>
         
         <View style={styles.footer}>
           <Text style={[styles.versionText, { color: theme.secondaryText }]}>App Version 1.0.5</Text>
@@ -604,58 +979,9 @@ export default function ProfileScreen() {
   );
 }
 
-// Reusable component for info fields
-// Reusable component for info fields
-const InfoField = ({ 
-  label, 
-  value, 
-  tempValue, 
-  editing, 
-  onChangeText, 
-  editable = true,
-  helperText = null,
-  keyboardType = "default",
-  theme
-}) => {
-  return (
-    <View style={styles.info}>
-      <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
-      <View style={styles.valueContainer}>
-        {editing ? (
-          <TextInput 
-            style={[
-              styles.input, 
-              !editable && styles.disabledInput,
-              { 
-                color: theme.text, 
-                borderBottomColor: editable ? "#FFD700" : theme.border,
-                backgroundColor: !editable ? (theme.isDark ? '#333' : '#f0f0f0') : 'transparent'
-              }
-            ]} 
-            value={tempValue} 
-            onChangeText={onChangeText} 
-            editable={editable}
-            keyboardType={keyboardType}
-            placeholderTextColor={theme.secondaryText}
-            placeholder={`Enter ${label.toLowerCase().replace(':', '')}`}
-          />
-        ) : (
-          <Text style={[styles.value, { color: theme.text, borderBottomColor: theme.border }]}>
-            {value || 'Not specified'}
-          </Text>
-        )}
-        {helperText && editing && (
-          <Text style={[styles.helperText, { color: theme.secondaryText }]}>{helperText}</Text>
-        )}
-      </View>
-    </View>
-  );
-};
-
+// Just include a minimal set of styles needed for the component to work
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1
-  },
+  container: { flex: 1 },
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -676,6 +1002,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     paddingBottom: 10
   },
+
   title: { 
     fontSize: 20, 
     fontWeight: "bold"

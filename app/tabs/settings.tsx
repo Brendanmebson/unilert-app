@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   View, 
   Text, 
@@ -13,13 +13,54 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme, isDark, setDarkMode } = useTheme();
+  const auth = useAuth();
   
+  // State for user details
+  const [userDetails, setUserDetails] = useState({
+    full_name: "",
+    email: "",
+    // other fields you want to show
+  });
   
-  // State management with more organized structure
+  // Load user details
+  useEffect(() => {
+    const loadUserDetails = async () => {
+      try {
+        // Try auth context first
+        if (auth?.userProfile) {
+          setUserDetails({
+            full_name: auth.userProfile.full_name || "",
+            email: auth.userProfile.email || ""
+            // Add other fields you want
+          });
+          return;
+        }
+        
+        // Fallback to AsyncStorage
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile);
+          setUserDetails({
+            full_name: profileData.full_name || "",
+            email: profileData.email || ""
+            // Add other fields you want
+          });
+        }
+      } catch (error) {
+        console.error("[Settings] Error loading user details:", error);
+      }
+    };
+    
+    loadUserDetails();
+  }, [auth?.userProfile]);
+  
+  // Settings state with more organized structure
   const [settings, setSettings] = useState({
     notifications: {
       app: true,
@@ -89,7 +130,22 @@ export default function SettingsScreen() {
         { text: "Cancel", style: "cancel" },
         { 
           text: "Logout", 
-          onPress: () => router.replace("../login"),
+          onPress: async () => {
+            try {
+              if (auth?.signOut) {
+                await auth.signOut();
+              } else {
+                // Fallback logout
+                await supabase.auth.signOut();
+                await AsyncStorage.removeItem('userProfile');
+                await AsyncStorage.removeItem('user');
+              }
+              router.replace("/login");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
+            }
+          },
           style: "destructive"
         }
       ]
@@ -160,11 +216,19 @@ export default function SettingsScreen() {
           onPress={() => navigateTo("/tabs/profile")}
         >
           <View style={[styles.profileImagePlaceholder, { backgroundColor: isDark ? "#4dabf7" : "#0A356D" }]}>
-            <Text style={styles.profileInitials}>EJ</Text>
+            <Text style={styles.profileInitials}>
+              {userDetails.full_name
+                ? userDetails.full_name.split(' ').map(name => name[0]).join('').toUpperCase()
+                : "U"}
+            </Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, {color: theme.text}]}>Emmanuel James</Text>
-            <Text style={[styles.profileEmail, {color: theme.secondaryText}]}>emmanuel@student.babcock.edu.ng</Text>
+            <Text style={[styles.profileName, {color: theme.text}]}>
+              {userDetails.full_name || "User"}
+            </Text>
+            <Text style={[styles.profileEmail, {color: theme.secondaryText}]}>
+              {userDetails.email || "user@example.edu.ng"}
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.secondaryText} />
         </TouchableOpacity>

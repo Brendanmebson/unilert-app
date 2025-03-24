@@ -116,8 +116,17 @@ export default function LoginScreen() {
           console.error("[Login] Error fetching profile:", profileError);
         }
         
-        // Navigate to dashboard
-        router.replace("/tabs/dashboard");
+        // Make sure auth context is updated
+        if (auth.refreshProfile) {
+          console.log("[Login] Explicitly refreshing profile in auth context");
+          await auth.refreshProfile();
+        }
+        
+        // Allow time for auth context to update before navigation
+        setTimeout(() => {
+          console.log("[Login] Navigating to dashboard");
+          router.replace("/tabs/dashboard");
+        }, 500);
       }
     } catch (error) {
       console.error("[Login] Login error:", error.message);
@@ -259,7 +268,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Styles would go here
+  // Styles would go here - keeping the original styles
   container: {
     flex: 1,
     justifyContent: "center",

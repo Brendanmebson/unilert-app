@@ -179,7 +179,7 @@ export default function SignupScreen() {
           {/* Input Fields */}
           <TextInput
             style={styles.input}
-            placeholder="Full Name"
+            placeholder="Name"
             placeholderTextColor="#555"
             onChangeText={setName}
             value={name}
