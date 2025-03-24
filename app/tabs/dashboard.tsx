@@ -764,41 +764,6 @@ marginBottom: normalize(15)
 </View>
 </View>
 
-{/* User Profile Summary */}
-<View style={[styles.card, { 
-backgroundColor: theme.card,
-padding: normalize(15),
-borderRadius: normalize(12),
-marginBottom: normalize(15)
-}]}>
-<View style={styles.profileSummary}>
-<View style={[styles.profileIcon, { 
-backgroundColor: theme.accent,
-width: normalize(50),
-height: normalize(50),
-borderRadius: normalize(25)
-}]}>
-<Text style={[styles.profileInitials, {
-  fontSize: normalize(18)
-}]}>
-  {userName.split(' ').map(name => name[0]).join('').toUpperCase()}
-</Text>
-</View>
-<View style={styles.profileDetails}>
-<Text style={[styles.profileName, {
-  color: theme.text,
-  fontSize: normalize(16)
-}]}>{userName}</Text>
-<Text style={[styles.profileInfo, {
-  color: theme.secondaryText,
-  fontSize: normalize(14)
-}]}>
-  {auth?.userProfile?.matric_no || 'No Matric Number'} • {auth?.userProfile?.department || 'No Department'}
-</Text>
-</View>
-</View>
-</View>
-
 {/* Daily Safety Tips Carousel */}
 <View style={[styles.card, { 
 backgroundColor: theme.card,

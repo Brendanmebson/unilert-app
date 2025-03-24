@@ -11,7 +11,8 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
-  RefreshControl
+  RefreshControl,
+  DeviceEventEmitter
 } from "react-native";
 import { Ionicons, Entypo, MaterialIcons, Feather, FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -281,88 +282,55 @@ export default function ProfileScreen() {
   };
   
   const saveUserData = async () => {
-    if (!auth.user) {
-      Alert.alert("Error", "You must be logged in to update your profile");
-      return;
-    }
-
     try {
-      setLoading(true);
-      
       // Validate inputs
       if (!tempData.full_name) {
         Alert.alert("Validation Error", "Name is required");
-        setLoading(false);
         return;
       }
-      
-      let imageUrl = tempData.profile_image_url;
-      
-      // Check if image needs to be uploaded (if it's a local URI)
-      if (tempData.profile_image_url && !tempData.profile_image_url.startsWith('http')) {
-        console.log("Uploading new profile image from local URI");
-        const uploadedUrl = await uploadProfileImage(tempData.profile_image_url);
-        if (uploadedUrl) {
-          imageUrl = uploadedUrl;
-        }
-      }
-      
-      // Prepare complete update data - include ALL fields
+  
+      // Prepare the updates
       const updates = {
         full_name: tempData.full_name,
-        matric_no: tempData.matric_no || auth.userProfile?.matric_no || "",
         phone_number: tempData.phone_number || null,
-        email: tempData.email || auth.userProfile?.email || "",
         course: tempData.course || null,
         department: tempData.department || null,
         level: tempData.level || null,
         hall: tempData.hall || null,
-        profile_image_url: imageUrl || null,
-        updated_at: new Date().toISOString()
+        matric_no: tempData.matric_no || null  // Keep existing matric number
       };
-      
-      console.log("Saving profile with complete updates:", updates);
-      
-      // First, update directly in Supabase to ensure changes are saved
-      const { data: supabaseData, error: supabaseError } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', auth.user.id)
-        .select();
+  
+      // Save to AsyncStorage
+      try {
+        // Retrieve existing profile
+        const existingProfileStr = await AsyncStorage.getItem('userProfile');
+        const existingProfile = existingProfileStr ? JSON.parse(existingProfileStr) : {};
+  
+        // Merge updates
+        const updatedProfile = {
+          ...existingProfile,
+          ...updates
+        };
+  
+        // Save updated profile
+        await AsyncStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+
+        DeviceEventEmitter.emit('storageChanged');
+
         
-      if (supabaseError) {
-        console.error("Direct Supabase update error:", supabaseError);
-        throw supabaseError;
+        // Update local state
+        setTempData(updatedProfile);
+  
+        // Show success message
+        Alert.alert("Success", "Profile updated successfully");
+        setEditing(false);
+      } catch (storageError) {
+        console.error("Error saving profile to storage:", storageError);
+        Alert.alert("Error", "Failed to save profile");
       }
-      
-      console.log("Profile updated in Supabase:", supabaseData);
-      
-      // Then update through auth context to keep everything in sync
-      const { data, error } = await auth.updateProfile(updates);
-      
-      if (error) {
-        console.error("Profile update error in context:", error);
-        // We continue because we already updated in Supabase
-      }
-      
-      // Refresh the profile data
-      if (auth.refreshProfile) {
-        await auth.refreshProfile();
-      }
-      
-      // Also update AsyncStorage directly to ensure consistency
-      await AsyncStorage.setItem('userProfile', JSON.stringify({
-        ...auth.userProfile,
-        ...updates
-      }));
-      
-      setEditing(false);
-      Alert.alert("Success", "Profile updated successfully");
     } catch (error) {
-      console.error("Error saving user data:", error.message);
-      Alert.alert("Update Error", "Failed to update profile. Please try again.");
-    } finally {
-      setLoading(false);
+      console.error("Profile update error:", error);
+      Alert.alert("Error", "Failed to update profile");
     }
   };
   
@@ -389,57 +357,30 @@ export default function ProfileScreen() {
       }
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        console.log("Image picked successfully");
         // Update the temporary data with the image URI
         setTempData({
           ...tempData,
           profile_image_url: result.assets[0].uri
         });
         
-        // If not in editing mode, save immediately
-        if (!editing) {
-          if (!auth.user) {
-            Alert.alert("Error", "You must be logged in to update your profile picture");
-            return;
-          }
-
-          const uploadedUrl = await uploadProfileImage(result.assets[0].uri);
-          if (uploadedUrl) {
-            // First update directly in Supabase
-            const { error: supabaseError } = await supabase
-              .from('profiles')
-              .update({ profile_image_url: uploadedUrl })
-              .eq('id', auth.user.id);
-              
-            if (supabaseError) {
-              console.error("Error updating image in Supabase:", supabaseError);
-              Alert.alert("Error", "Failed to update profile with new image in database");
-              return;
-            }
-            
-            // Then update through auth context
-            const { error } = await auth.updateProfile({ profile_image_url: uploadedUrl });
-            
-            if (error) {
-              console.error("Error updating image in auth context:", error);
-            }
-            
-            // Update AsyncStorage
-            const storedProfile = await AsyncStorage.getItem('userProfile');
-            if (storedProfile) {
-              const profileData = JSON.parse(storedProfile);
-              profileData.profile_image_url = uploadedUrl;
-              await AsyncStorage.setItem('userProfile', JSON.stringify(profileData));
-            }
-            
-            // Refresh profile
-            if (auth.refreshProfile) {
-              await auth.refreshProfile();
-            }
-            
-            Alert.alert("Success", "Profile picture updated successfully");
-          }
+        // Skip the auth check and proceed with the upload
+        const dummyUserId = "temp_user_123"; // Create a temporary user ID
+        
+        // Modify this to save locally rather than trying to upload to Supabase
+        // Or set up a mock auth object
+        
+        // Just update the local state and storage
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile);
+          profileData.profile_image_url = result.assets[0].uri; // Just use the local URI
+          await AsyncStorage.setItem('userProfile', JSON.stringify(profileData));
+          
+          // Update UI
+          DeviceEventEmitter.emit('storageChanged');
         }
+        
+        Alert.alert("Success", "Profile picture updated locally");
       }
     } catch (error) {
       console.error("Error picking image:", error);

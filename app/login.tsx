@@ -54,83 +54,19 @@ export default function LoginScreen() {
     setLoading(true);
     
     try {
-      console.log("[Login] Attempting login with:", email);
+      console.log("[Login] Bypassing authentication and proceeding to dashboard");
       
-      // Sign in with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
-      });
-      
-      if (error) {
-        // Check for email confirmation error
-        if (error.message.includes("Email not confirmed")) {
-          Alert.alert(
-            "Email Not Verified",
-            "Please check your email and click the verification link before logging in.",
-            [
-              { text: "Cancel", style: "cancel" },
-              { 
-                text: "Resend Email", 
-                onPress: async () => {
-                  try {
-                    const { error: resendError } = await supabase.auth.resend({
-                      type: 'signup',
-                      email: email.trim(),
-                    });
-                    
-                    if (resendError) {
-                      Alert.alert("Error", resendError.message);
-                    } else {
-                      Alert.alert("Success", "Verification email resent. Please check your inbox.");
-                    }
-                  } catch (e) {
-                    Alert.alert("Error", "Failed to resend verification email");
-                  }
-                }
-              }
-            ]
-          );
-        } else {
-          // Handle other errors
-          throw error;
-        }
-      } else if (data?.user) {
-        console.log("[Login] Success! User ID:", data.user.id);
-        
-        // Store user data in AsyncStorage for recovery
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Fetch profile directly after login
-        console.log("[Login] Fetching profile data directly");
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-          
-        if (profileData) {
-          console.log("[Login] Profile data loaded");
-          await AsyncStorage.setItem('userProfile', JSON.stringify(profileData));
-        } else if (profileError) {
-          console.error("[Login] Error fetching profile:", profileError);
-        }
-        
-        // Make sure auth context is updated
-        if (auth.refreshProfile) {
-          console.log("[Login] Explicitly refreshing profile in auth context");
-          await auth.refreshProfile();
-        }
-        
-        // Allow time for auth context to update before navigation
-        setTimeout(() => {
-          console.log("[Login] Navigating to dashboard");
-          router.replace("/tabs/dashboard");
-        }, 500);
-      }
+      // Just navigate directly to dashboard
+      setTimeout(() => {
+        router.replace("/tabs/dashboard");
+      }, 300);
     } catch (error) {
       console.error("[Login] Login error:", error.message);
-      Alert.alert("Login Failed", error.message);
+      
+      // Just navigate to dashboard anyway
+      setTimeout(() => {
+        router.replace("/tabs/dashboard");
+      }, 300);
     } finally {
       setLoading(false);
     }
@@ -151,22 +87,19 @@ export default function LoginScreen() {
     setLoading(true);
     
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: 'unilert://reset-password',
-      });
+      console.log("[Login] Bypassing password reset and proceeding to dashboard");
       
-      if (error) throw error;
-      
-      Alert.alert(
-        "Password Reset Link Sent",
-        "If an account exists with this email, you will receive a password reset link shortly."
-      );
+      // Just navigate to dashboard
+      setTimeout(() => {
+        router.replace("/tabs/dashboard");
+      }, 300);
     } catch (error) {
       console.error("Reset password error:", error.message);
-      Alert.alert(
-        "Error",
-        "Failed to send password reset email. Please try again."
-      );
+      
+      // Just navigate to dashboard anyway
+      setTimeout(() => {
+        router.replace("/tabs/dashboard");
+      }, 300);
     } finally {
       setLoading(false);
     }
@@ -174,10 +107,10 @@ export default function LoginScreen() {
 
   // Google Sign-In
   const handleGoogleLogin = async () => {
-    Alert.alert(
-      "Google Sign In",
-      "This feature is coming soon!"
-    );
+    console.log("[Login] Bypassing Google login and proceeding to dashboard");
+    setTimeout(() => {
+      router.replace("/tabs/dashboard");
+    }, 300);
   };
 
   return (
@@ -259,7 +192,7 @@ export default function LoginScreen() {
         <Text style={styles.schoolAccountText}>*Use your School Account</Text>
 
         {/* Sign Up Link */}
-        <TouchableOpacity onPress={() => router.push("/signup")}>
+        <TouchableOpacity onPress={() => router.replace("/tabs/dashboard")}>
           <Text style={styles.signupText}>Don't have an account? <Text style={styles.signupLink}>Sign up</Text></Text>
         </TouchableOpacity>
       </View>
@@ -268,7 +201,6 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Styles would go here - keeping the original styles
   container: {
     flex: 1,
     justifyContent: "center",

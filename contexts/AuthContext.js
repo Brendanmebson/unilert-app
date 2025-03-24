@@ -12,6 +12,31 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Add this effect to ensure data is loaded from storage
+  useEffect(() => {
+    const loadUserFromStorage = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        
+        if (storedUser) {
+          console.log("[AuthContext] Loading user from storage");
+          setUser(JSON.parse(storedUser));
+        }
+        
+        if (storedProfile) {
+          console.log("[AuthContext] Loading profile from storage");
+          setUserProfile(JSON.parse(storedProfile));
+        }
+      } catch (error) {
+        console.error("[AuthContext] Error loading from storage:", error);
+      }
+    };
+    
+    loadUserFromStorage();
+  }, []);
 
   // Check user on mount
   useEffect(() => {
@@ -32,7 +57,7 @@ export const AuthProvider = ({ children }) => {
         }
         
         // If we have an active session, use it
-        if (data.session) {
+        if (data?.session) {
           console.log("[AuthContext] Found active session for user:", data.session.user.id);
           setSession(data.session);
           setUser(data.session.user);
@@ -81,6 +106,7 @@ export const AuthProvider = ({ children }) => {
         console.error("[AuthContext] Initialization error:", error);
       } finally {
         setLoading(false);
+        setInitialized(true);
       }
     };
     
@@ -190,15 +216,17 @@ export const AuthProvider = ({ children }) => {
   async function refreshProfile() {
     console.log("[AuthContext] Explicitly refreshing profile");
     try {
-      if (!user) {
-        console.log("[AuthContext] No user, checking for session");
-        const { data } = await supabase.auth.getSession();
-        
-        if (!data?.session) {
-          console.log("[AuthContext] No active session found during refresh");
-          return null;
-        }
-        
+      // Always try to use current user first
+      if (user) {
+        console.log("[AuthContext] Using existing user to refresh profile");
+        return await fetchProfile(user.id);
+      }
+      
+      // If no user object, check for session
+      console.log("[AuthContext] No user, checking for session");
+      const { data } = await supabase.auth.getSession();
+      
+      if (data?.session) {
         console.log("[AuthContext] Found session, setting user:", data.session.user.id);
         setUser(data.session.user);
         setSession(data.session);
@@ -206,7 +234,40 @@ export const AuthProvider = ({ children }) => {
         return await fetchProfile(data.session.user.id);
       }
       
-      return await fetchProfile(user.id);
+      // If no session, try stored user
+      console.log("[AuthContext] No active session found during refresh, checking storage");
+      
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          console.log("[AuthContext] Found user in storage during refresh:", userData.id);
+          setUser(userData);
+          
+          // Try to fetch profile for this user
+          const profile = await fetchProfile(userData.id);
+          if (profile) {
+            return profile;
+          }
+        }
+      } catch (error) {
+        console.error("[AuthContext] Error loading from storage:", error);
+      }
+      
+      // If all else fails, try to get stored profile directly
+      try {
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile);
+          console.log("[AuthContext] Using stored profile as last resort");
+          setUserProfile(profileData);
+          return profileData;
+        }
+      } catch (error) {
+        console.error("[AuthContext] Error loading profile from storage:", error);
+      }
+      
+      return null;
     } catch (error) {
       console.error("[AuthContext] Error refreshing profile:", error);
       return null;
@@ -216,39 +277,65 @@ export const AuthProvider = ({ children }) => {
   // New method to refresh all user data
   async function refreshUserData() {
     try {
+      // Try to get current user first
       if (!user) {
-        console.log("[AuthContext] Can't refresh user data without an authenticated user");
-        return null;
+        console.log("[AuthContext] No user in context, checking for session");
+        const { data } = await supabase.auth.getSession();
+        
+        if (data?.session) {
+          console.log("[AuthContext] Found session, setting user:", data.session.user.id);
+          setUser(data.session.user);
+          setSession(data.session);
+        } else {
+          console.log("[AuthContext] No active session found");
+          
+          // Try stored user
+          const storedUser = await AsyncStorage.getItem('user');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+          } else {
+            console.log("[AuthContext] No stored user found");
+            return null;
+          }
+        }
       }
       
-      // First refresh the session to make sure it's current
-      const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
-      if (sessionError) {
-        console.error("[AuthContext] Error refreshing session:", sessionError);
+      // Use whatever user ID we have available
+      const userId = user?.id;
+      if (!userId) {
+        console.log("[AuthContext] No valid user ID available after checks");
         return null;
       }
       
       // Now fetch the latest profile data
-      if (sessionData?.session) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', sessionData.session.user.id)
-          .single();
-          
-        if (error) {
-          console.error("[AuthContext] Error fetching fresh profile data:", error);
-          return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (error) {
+        console.error("[AuthContext] Error fetching fresh profile data:", error);
+        
+        // Try to get stored profile
+        const storedProfile = await AsyncStorage.getItem('userProfile');
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile);
+          setUserProfile(profileData);
+          return profileData;
         }
         
-        if (data) {
-          // Update context state
-          setUserProfile(data);
-          // Update local storage
-          await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-          console.log("[AuthContext] User data refreshed successfully");
-          return data;
-        }
+        return null;
+      }
+      
+      if (data) {
+        // Update context state
+        setUserProfile(data);
+        // Update local storage
+        await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+        console.log("[AuthContext] User data refreshed successfully");
+        return data;
       }
       
       return null;
@@ -337,9 +424,42 @@ export const AuthProvider = ({ children }) => {
   // Update profile function
   async function updateProfile(updates) {
     try {
-      if (!user) throw new Error('No user logged in');
+      // Get user ID from various sources
+      let userId = null;
       
-      console.log("[AuthContext] Updating profile for user:", user.id);
+      if (user) {
+        userId = user.id;
+      } else {
+        // Try to get from stored profile
+        try {
+          const storedProfile = await AsyncStorage.getItem('userProfile');
+          if (storedProfile) {
+            const profileData = JSON.parse(storedProfile);
+            userId = profileData.id;
+          }
+        } catch (e) {
+          console.error("[AuthContext] Error getting profile ID:", e);
+        }
+        
+        // If still no user ID, try stored user
+        if (!userId) {
+          try {
+            const storedUser = await AsyncStorage.getItem('user');
+            if (storedUser) {
+              const userData = JSON.parse(storedUser);
+              userId = userData.id;
+            }
+          } catch (e) {
+            console.error("[AuthContext] Error getting user ID:", e);
+          }
+        }
+      }
+      
+      if (!userId) {
+        throw new Error('No user ID available for profile update');
+      }
+      
+      console.log("[AuthContext] Updating profile for user:", userId);
       
       // Create a complete updates object with all profile fields
       const completeUpdates = {
@@ -356,7 +476,7 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase
         .from('profiles')
         .update(completeUpdates)
-        .eq('id', user.id)
+        .eq('id', userId)
         .select()
         .single();
         
@@ -393,12 +513,43 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Force check session function
+  async function checkSession() {
+    try {
+      console.log("[AuthContext] Performing force session check");
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("[AuthContext] Force session check error:", error);
+        return false;
+      }
+      
+      if (data?.session) {
+        console.log("[AuthContext] Force check found active session");
+        setSession(data.session);
+        setUser(data.session.user);
+        
+        // Ensure AsyncStorage is up to date
+        await AsyncStorage.setItem('user', JSON.stringify(data.session.user));
+        
+        return true;
+      }
+      
+      console.log("[AuthContext] Force check found no active session");
+      return false;
+    } catch (e) {
+      console.error("[AuthContext] Force session check exception:", e);
+      return false;
+    }
+  }
+
   // Context value
   const value = {
     user,
     session,
     userProfile,
     loading,
+    initialized,
     signUp,
     signIn,
     signOut,
@@ -407,14 +558,23 @@ export const AuthProvider = ({ children }) => {
     refreshProfile,
     refreshUserData,
     fetchProfile,
-    // Add these functions to allow direct manipulation
+    checkSession,
+    // Add these functions to allow direct manipulation if needed
     setUser: (userData) => {
-      console.log("[AuthContext] Directly setting user:", userData.id);
+      console.log("[AuthContext] Directly setting user:", userData?.id);
       setUser(userData);
     },
     setSession: (sessionData) => {
       console.log("[AuthContext] Directly setting session");
       setSession(sessionData);
+    },
+    setUserProfile: (profileData) => {
+      console.log("[AuthContext] Directly setting profile");
+      setUserProfile(profileData);
+      if (profileData) {
+        AsyncStorage.setItem('userProfile', JSON.stringify(profileData))
+          .catch(e => console.error("[AuthContext] Error saving profile to storage:", e));
+      }
     }
   };
 
